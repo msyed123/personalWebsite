@@ -14,12 +14,10 @@
           target="_blank"
           class="button--green"
         >Documentation</a>
-        <NuxtLink
-          to="/about"
-          class="button--green"
-        >
-        About
-        </NuxtLink>
+        <b-button variant="outline-primary" href="/about">
+          About
+        </b-button>
+        
       </div>
     </div>
   </section>
@@ -46,8 +44,7 @@ export default {
 }
 
 .title {
-  font-family: 'Quicksand', 'Source Sans Pro', -apple-system, BlinkMacSystemFont,
-    'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-family: monaco, monospace;
   display: block;
   font-weight: 300;
   font-size: 100px;
@@ -56,6 +53,7 @@ export default {
 }
 
 .subtitle {
+  font-family: monaco, monospace;
   font-weight: 300;
   font-size: 42px;
   color: #526488;
@@ -65,5 +63,7 @@ export default {
 
 .links {
   padding-top: 15px;
+  font-family: monaco, monospace;
+  color: 35495e;
 }
 </style>
