@@ -8,13 +8,17 @@
                 I am just a simple man trying to figure out how to make things go up.
                 I am currently studying aerospace engineering at the Florida Institute of Technology where I am currently a sophomore pursuing a bachelors.
             </p>
+            <Progress />
         </div>
     </section>
 </template>
 
 <script>
+import Progress from '~/components/Progress.vue'
 export default {
-
+    components: {
+        Progress
+    }
 }
 </script>
 
