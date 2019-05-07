@@ -7,6 +7,9 @@
       <b-nav-item>
         <nuxt-link to="/about" exact class="nuxt-link">About</nuxt-link>
       </b-nav-item>
+            <b-nav-item>
+        <nuxt-link to="/projects" exact class="nuxt-link">Projects</nuxt-link>
+      </b-nav-item>
       
     </b-navbar-nav>
 
@@ -78,5 +81,9 @@ export default {
   text-decoration-style: dashed;
   font-weight: bold;
 }
-
+.nuxt-link:hover {
+  color: white;
+  text-decoration: none;
+  font-weight: bold;
+}
 </style>

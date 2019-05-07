@@ -8,7 +8,7 @@
         header-text-variant="white"
     >
         <ul>
-            <li v-for="skill in skills" v-bind:key="skill.id">
+            <li v-for="skill in skills" v-bind:key="skill.task">
                 <div class="task">{{skill.task}}</div>
                 <div class="bar">
                     <div class="progress" v-bind:style = "{'background':skill.color, 'width':skill.percent+'%'}"></div>
@@ -24,12 +24,13 @@ export default {
     data() {
         return{
             skills:[
-                {task:"HTML5",      percent:90,   color:"#ec407a"},
-                {task:"CSS3", 		percent:76,   color:"#f4511e"},
-                {task:"JAVASCRIPT", percent:84,   color:"#512da8"},
-                {task:"MATERIALIZE",percent:94,   color:"#f57c00"},
-                {task:"VUE",		percent:93,   color:"#0288d1"},
-                {task:"MONGODB", 	percent:87,   color:"#388e3c"}
+                {task:"Fusion 360", percent:90,   color:"#ec407a"},
+                {task:"Siemens NX", percent:75,   color:"#512da8"},
+                {task:"ANSYS",      percent:80,   color:"#f57c00"},
+                {task:"Simulink",	percent:75,   color:"#0288d1"},
+                {task:"C++", 	    percent:85,   color:"#388e3c"},
+                {task:"Python",     percent:90,   color:"#f4511e"},
+                {task:"Machining",  percent:80,   color:"#2C3539"}
             ]
         };
     }
@@ -45,14 +46,6 @@ body{
 	padding: 0;
 	margin: 0;
 	box-sizing:border-box;
-}
-
-.box{
-	width: 600px;
-	padding: 40px;
-	margin:50px auto;
-	background:#f3f3f3;
-	box-shadow: 3px 3px 10px 3px rgba(0, 0, 0, 0.1);
 }
 
 ul li{
