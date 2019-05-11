@@ -1,7 +1,7 @@
 <template>
   <section class="container">
     <div>
-      <logo />
+      <Logo />
       <h1 class="title">
         Mamoon Syed
       </h1>
@@ -9,13 +9,11 @@
         Aerospace Engineer
       </h2>
       <div class="links">
-        <a
-          href="https://nuxtjs.org/"
-          target="_blank"
-          class="button--green"
-        >Documentation</a>
         <b-button variant="outline-primary" href="/about">
           About
+        </b-button>
+        <b-button variant="outline-primary" href="/projects">
+          Projects
         </b-button>
         
       </div>

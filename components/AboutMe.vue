@@ -22,8 +22,8 @@
             class="mx-auto overflow-hidden"
             style="width: 85%"
             >
-                <b-row no-gutters>
-                    <b-col md="6">
+                <b-row no-gutters align-v="center">
+                    <b-col md="3">
                         <b-card-img :src="require('../assets/msyed.jpg')" class="rounded-0"></b-card-img>
                     </b-col>
                     <b-col md="6">
