@@ -8,9 +8,9 @@
             style="width: 85%"
             >
                 <b-list-group>
-                    <b-list-group-item>Space-based robotic systems</b-list-group-item>
-                    <b-list-group-item>Modern spacecraft propulsion systems</b-list-group-item>
-                    <b-list-group-item>Cutting-edge manufacturing techniques</b-list-group-item>
+                    <b-list-group-item v-for="interest in interests" v-bind:key="interest.data.priority">
+                        {{ interest.data.name[0].text }}
+                    </b-list-group-item>
                 </b-list-group>
             </b-card>
 
@@ -52,8 +52,33 @@
 </template>
 
 <script>
+import Prismic from "prismic-javascript";
+import PrismicDom from "prismic-dom";
+import PrismicConfig from "~/prismic.config.js";
 import Progress from '~/components/Progress.vue'
+
 export default {
+    data () {
+        return {
+            interests: []
+        }
+    },
+
+    methods: {
+        async getInterests() {
+            const api = await Prismic.getApi(PrismicConfig.apiEndpoint);
+            const response = await api.query(
+                Prismic.Predicates.at("document.type", "interest"),
+                { orderings : '[my.interest.priority]'}
+            )
+            this.interests = response.results;
+        }
+    },
+
+    created () {
+        this.getInterests()
+    },
+
     components: {
         Progress
     }

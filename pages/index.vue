@@ -9,10 +9,10 @@
         Aerospace Engineer
       </h2>
       <div class="links">
-        <b-button variant="outline-primary" href="/about">
+        <b-button variant="outline-primary" v-bind:to="{path: 'about'}">
           About
         </b-button>
-        <b-button variant="outline-primary" href="/projects">
+        <b-button variant="outline-primary" v-bind:to="{path: 'projects'}">
           Projects
         </b-button>
         
@@ -22,7 +22,7 @@
 </template>
 
 <script>
-import Logo from '~/components/Logo.vue'
+import Logo from "~/components/Logo.vue";
 
 export default {
   components: {
@@ -45,7 +45,7 @@ export default {
   font-family: monaco, monospace;
   display: block;
   font-weight: 300;
-  font-size: 100px;
+  font-size: 10vw;
   color: #35495e;
   letter-spacing: 1px;
 }
@@ -53,7 +53,7 @@ export default {
 .subtitle {
   font-family: monaco, monospace;
   font-weight: 300;
-  font-size: 42px;
+  font-size: 5vw;
   color: #526488;
   word-spacing: 5px;
   padding-bottom: 15px;
@@ -62,6 +62,5 @@ export default {
 .links {
   padding-top: 15px;
   font-family: monaco, monospace;
-  color: 35495e;
 }
 </style>

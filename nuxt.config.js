@@ -34,6 +34,7 @@ export default {
   */
   plugins: [
     '@/plugins/bootstrap-vue',
+    '~/plugins/prismic-vue',
   ],
 
   /*
@@ -42,6 +43,10 @@ export default {
   modules: [
     '@nuxtjs/pwa',
   ],
+
+  router:{
+    base: '/~msyed2017/'
+  },
 
   /*
   ** Build configuration

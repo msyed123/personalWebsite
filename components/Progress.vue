@@ -9,10 +9,10 @@
     >
         <ul>
             <li v-for="skill in skills" v-bind:key="skill.task">
-                <div class="task">{{skill.task}}</div>
+                <div class="task">{{skill.data.task[0].text}}</div>
                 <div class="bar">
-                    <div class="progress" v-bind:style = "{'background':skill.color, 'width':skill.percent+'%'}"></div>
- 		 			<span class="percent">{{skill.percent}}%</span>
+                    <div class="progress" v-bind:style = "{'background':skill.data.color, 'width':skill.data.percent+'%'}"></div>
+ 		 			<span class="percent">{{skill.data.percent}}%</span>
                 </div>
             </li>
         </ul>
@@ -20,19 +20,30 @@
 </template>
 
 <script>
+import Prismic from "prismic-javascript";
+import PrismicDom from "prismic-dom";
+import PrismicConfig from "~/prismic.config.js";
+
 export default {
     data() {
         return{
-            skills:[
-                {task:"Fusion 360", percent:90,   color:"#ec407a"},
-                {task:"Siemens NX", percent:75,   color:"#512da8"},
-                {task:"ANSYS",      percent:80,   color:"#f57c00"},
-                {task:"Simulink",	percent:75,   color:"#0288d1"},
-                {task:"C++", 	    percent:85,   color:"#388e3c"},
-                {task:"Python",     percent:90,   color:"#f4511e"},
-                {task:"Machining",  percent:80,   color:"#2C3539"}
-            ]
+            skills: []
         };
+    },
+
+    methods: {
+        async getSkills() {
+            const api = await Prismic.getApi(PrismicConfig.apiEndpoint);
+            const response = await api.query(
+                Prismic.Predicates.at("document.type", "skill"),
+                { orderings : '[my.project.percent desc]'}
+            )
+            this.skills = response.results;
+        }
+    },
+
+    created () {
+        this.getSkills()
     }
 };
 </script>
