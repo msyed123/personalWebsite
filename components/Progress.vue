@@ -33,7 +33,7 @@ export default {
 
     methods: {
         async getSkills() {
-            const api = await Prismic.getApi(PrismicConfig.apiEndpoint);
+            const api = await Prismic.getApi(PrismicConfig.apiEndpoint, {accessToken: PrismicConfig.accessToken});
             const response = await api.query(
                 Prismic.Predicates.at("document.type", "skill"),
                 { orderings : '[my.project.percent desc]'}

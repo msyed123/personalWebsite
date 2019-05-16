@@ -82,3 +82,6 @@ dist
 
 # Service worker
 sw.*
+
+# API information
+prismic.config.js

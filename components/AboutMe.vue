@@ -66,7 +66,7 @@ export default {
 
     methods: {
         async getInterests() {
-            const api = await Prismic.getApi(PrismicConfig.apiEndpoint);
+            const api = await Prismic.getApi(PrismicConfig.apiEndpoint, {accessToken: PrismicConfig.accessToken});
             const response = await api.query(
                 Prismic.Predicates.at("document.type", "interest"),
                 { orderings : '[my.interest.priority]'}
