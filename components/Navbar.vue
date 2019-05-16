@@ -1,5 +1,5 @@
 <template>
-  <b-navbar toggleable="lg" type="dark" variant="primary" v-bind:sticky="true">
+  <b-navbar type="dark" variant="primary" v-bind:sticky="true">
     <b-navbar-nav>
       <b-nav-item>
         <nuxt-link to="/" exact class="nuxt-link">Home</nuxt-link>

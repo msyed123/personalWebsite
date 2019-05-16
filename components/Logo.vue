@@ -86,10 +86,6 @@
 </template>
 
 <style>
-.svgContainer{
-
-}
-
 #js-rocket {
     display: flex;
 }

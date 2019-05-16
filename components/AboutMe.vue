@@ -23,10 +23,10 @@
             style="width: 85%"
             >
                 <b-row no-gutters align-v="center">
-                    <b-col md="3">
+                    <b-col md="4">
                         <b-card-img :src="require('../assets/msyed.jpg')" class="rounded-0"></b-card-img>
                     </b-col>
-                    <b-col md="6">
+                    <b-col>
                         <b-card-body title="About Me">
                             <b-card-text>
                                 I am a native born Floridian with the goal of trying to figure out how to make
