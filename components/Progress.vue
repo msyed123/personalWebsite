@@ -1,32 +1,53 @@
 <template>
-    <b-card
+<div>
+    <div v-if="loading">
+        <b-card
+        no-body
+        style="width: 85%"
+        border-variant="primary"
+        header-bg-variant="primary"
+        header-text-variant="white" 
+        class="mx-auto"
+        header="Loading...">
+            <Loading />
+        </b-card>
+    </div>
+    <div v-else>
+        <b-card
         class="mx-auto"
         style="width: 85%"
         border-variant="primary"
         header="Skills"
         header-bg-variant="primary"
         header-text-variant="white"
-    >
-        <ul>
-            <li v-for="skill in skills" v-bind:key="skill.task">
-                <div class="task">{{skill.data.task[0].text}}</div>
-                <div class="bar">
-                    <div class="progress" v-bind:style = "{'background':skill.data.color, 'width':skill.data.percent+'%'}"></div>
- 		 			<span class="percent">{{skill.data.percent}}%</span>
-                </div>
-            </li>
-        </ul>
-    </b-card>
+        >
+            <ul>
+                <li v-for="skill in skills" v-bind:key="skill.task">
+                    <div class="task">{{skill.data.task[0].text}}</div>
+                    <div class="bar">
+                        <div class="progress" v-bind:style = "{'background':skill.data.color, 'width':skill.data.percent+'%'}"></div>
+                        <span class="percent">{{skill.data.percent}}%</span>
+                    </div>
+                </li>
+            </ul>
+        </b-card>
+    </div>
+</div>    
 </template>
 
 <script>
+import Loading from "~/components/Loading.vue";
 import Prismic from "prismic-javascript";
 import PrismicDom from "prismic-dom";
 import PrismicConfig from "~/prismic.config.js";
 
 export default {
+    components: {
+        Loading
+    },
     data() {
         return{
+            loading: true,
             skills: []
         };
     },
@@ -34,11 +55,13 @@ export default {
     methods: {
         async getSkills() {
             const api = await Prismic.getApi(PrismicConfig.apiEndpoint, {accessToken: PrismicConfig.accessToken});
+
             const response = await api.query(
                 Prismic.Predicates.at("document.type", "skill"),
                 { orderings : '[my.project.percent desc]'}
             )
             this.skills = response.results;
+            this.loading = false;
         }
     },
 

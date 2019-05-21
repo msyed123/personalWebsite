@@ -2,10 +2,23 @@
     <section>
         <div>
             <br />
+            <b-card
+            no-body
+            style="width: 85%"
+            border-variant="primary"
+            header-bg-variant="primary"
+            header-text-variant="white" 
+            class="mx-auto"
+            header="Loading..."
+            v-if="loading"
+            >
+                <Loading />
+            </b-card>
             <b-card 
             header="Interests"
             class="mx-auto"
             style="width: 85%"
+            v-else
             >
                 <b-list-group>
                     <b-list-group-item v-for="interest in interests" v-bind:key="interest.data.priority">
@@ -55,11 +68,13 @@
 import Prismic from "prismic-javascript";
 import PrismicDom from "prismic-dom";
 import PrismicConfig from "~/prismic.config.js";
-import Progress from '~/components/Progress.vue'
+import Progress from '~/components/Progress.vue';
+import Loading from "~/components/Loading.vue";
 
 export default {
     data () {
         return {
+            loading: true,
             interests: []
         }
     },
@@ -72,6 +87,7 @@ export default {
                 { orderings : '[my.interest.priority]'}
             )
             this.interests = response.results;
+            this.loading = false;
         }
     },
 
@@ -80,7 +96,8 @@ export default {
     },
 
     components: {
-        Progress
+        Progress,
+        Loading
     }
 }
 </script>

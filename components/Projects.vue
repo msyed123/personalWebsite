@@ -1,40 +1,58 @@
 <template>
-    <div>   
-        <li v-for="project in projects" v-bind:key="project.data.title">
-            <b-card 
+    <div>
+        <div v-if="loading">
+            <b-card
             no-body
             border-variant="primary"
             header-bg-variant="primary"
             header-text-variant="white" 
             class="overflow-hidden"
-            v-bind:header="project.data.project_title[0].text"
-            v-bind:footer="project.data.project_dates[0].text"
-            >
-                <b-card-body>
-                    <b-card-img
-                        v-bind:src="project.data.project_image.url"
-                    ></b-card-img>
-                    <b-card-text>
-                        <b>Role: {{project.data.project_role[0].text}}</b>
-                        <li v-for="description in project.data.project_details" v-bind:key="description.text">
-                            {{description.text}}
-                        </li>
-                        <br />
-                    </b-card-text>
-                </b-card-body>
+            header="Loading...">
+                <Loading />
             </b-card>
-        </li>
+        </div>
+        <div v-else>
+            <li v-for="project in projects" v-bind:key="project.data.title">
+                <b-card 
+                no-body
+                border-variant="primary"
+                header-bg-variant="primary"
+                header-text-variant="white" 
+                class="overflow-hidden"
+                v-bind:header="project.data.project_title[0].text"
+                v-bind:footer="project.data.project_dates[0].text"
+                >
+                    <b-card-body>
+                        <b-card-img
+                            v-bind:src="project.data.project_image.url"
+                        ></b-card-img>
+                        <b-card-text>
+                            <b>Role: {{project.data.project_role[0].text}}</b>
+                            <li v-for="description in project.data.project_details" v-bind:key="description.text">
+                                {{description.text}}
+                            </li>
+                            <br />
+                        </b-card-text>
+                    </b-card-body>
+                </b-card>
+            </li>
+        </div>   
     </div>
 </template>
 
 <script>
+import Loading from "~/components/Loading.vue";
 import Prismic from "prismic-javascript";
 import PrismicDom from "prismic-dom";
 import PrismicConfig from "~/prismic.config.js";
 
 export default {
+    components: {
+        Loading
+    },
     data() {
         return{
+            loading: true,
             projects: []
         };
     }, 
@@ -47,6 +65,7 @@ export default {
                 { orderings : '[my.project.priority]'}
             )
             this.projects = response.results;
+            this.loading = false;
         }
     },
 
