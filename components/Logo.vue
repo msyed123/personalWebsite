@@ -1,7 +1,7 @@
 <template>
   <div class="svgContainer">
       <div id="js-rocket">
-        <svg width="75%" height="75%" viewBox="0 0 477 549" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+        <svg width="60%" height="60%" viewBox="0 0 477 549" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
             <defs>
                 <linearGradient x1="0%" y1="50%" x2="100%" y2="50%" id="linearGradient-1">
                     <stop stop-color="#0CB2E2" offset="0%"></stop>
@@ -86,6 +86,9 @@
 </template>
 
 <style>
+.svgContainer {
+    padding-top: 5vh;
+}
 #js-rocket {
     display: flex;
 }

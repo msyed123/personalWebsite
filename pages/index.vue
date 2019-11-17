@@ -34,7 +34,7 @@ export default {
 <style>
 .container {
   margin: 0 auto;
-  min-height: 100vh;
+  min-height: 60vh;
   display: flex;
   justify-content: center;
   align-items: center;
@@ -43,9 +43,9 @@ export default {
 
 .title {
   font-family: monaco, monospace;
-  display: block;
+  display: inline-block;
   font-weight: 300;
-  font-size: 10vw;
+  font-size: 6vw;
   color: #35495e;
   letter-spacing: 1px;
 }
@@ -53,7 +53,7 @@ export default {
 .subtitle {
   font-family: monaco, monospace;
   font-weight: 300;
-  font-size: 5vw;
+  font-size: 3vw;
   color: #526488;
   word-spacing: 5px;
   padding-bottom: 15px;
