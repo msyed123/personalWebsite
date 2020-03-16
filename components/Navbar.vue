@@ -1,101 +1,125 @@
 <template>
-  <b-navbar type="dark" variant="primary" v-bind:sticky="true">
-    <b-navbar-nav>
-      <b-nav-item>
-        <nuxt-link to="/" exact class="nuxt-link">Home</nuxt-link>
-      </b-nav-item>
-      <b-nav-item>
-        <nuxt-link to="/about" exact class="nuxt-link">About</nuxt-link>
-      </b-nav-item>
-            <b-nav-item>
-        <nuxt-link to="/projects" exact class="nuxt-link">Projects</nuxt-link>
-      </b-nav-item>
-      
-    </b-navbar-nav>
-
-  </b-navbar>
+  <nav-bar :options="navbarOptions" />
 </template>
 
 <script>
-import VueNextLevelScroll from "vue-next-level-scroll";
-
 export default {
-  components: {
-    VueNextLevelScroll
-  },
   data() {
     return {
-      isVisible: false,
-      navItems: [
-        {
-          name: "About",
-          anchor: "about"
-        },
-        {
-          name: "Skills",
-          anchor: "skills"
-        },
-        {
-          name: "Timeline",
-          anchor: "timeline"
-        }
-      ]
-    };
-  },
-  computed: {
-    showNavLinks() {
-      return this.$route.path === "/";
+      navbarOptions: {
+        elementId: 'main-navbar',
+        isUsingVueRouter: false,
+        mobileBreakpoint: 992,
+        brandImagePath: './',
+        brandImageAltText: 'brand-image',
+        collapseButtonImageOpen: require('../static/collapse-menu-dark.png'),
+        collapseButtonImageClose: require('../static/chevron-down.png'),
+        showBrandImageInMobilePopup: true,
+        ariaLabelMainNav: 'Main Navigation',
+        tooltipAnimationType: 'shift-away',
+        menuOptionsLeft: [
+          {
+            type: 'button',
+            text: 'Home',
+            path: './'
+          },
+          {
+            type: 'link',
+            text: 'About',
+            path: './about',
+            subMenuOptions: [
+              {
+                type: 'link',
+                subText: "Stuff I find interesting and think I'm OK-ish at",
+                path: './about'
+              },
+            ]
+          },
+          {
+            type: 'link',
+            text: 'Projects',
+            subMenuOptions: [
+              {
+                type: 'link',
+                subText: "The things make me lose sleep at night",
+                path: './projects'
+              },
+            ]
+          },
+        ],
+      }
     }
   },
-  methods: {
-    toggleVisibility() {
-      this.isVisible = !this.isVisible;
-    }
-  }
 };
 </script>
 
 <style>
-.nuxt-link {
-  font-family: monaco, monospace;
-  font-size: 22px;
-  color: white;
-}
-.nuxt-link-active {
-  color: white;
-  text-decoration: underline;
-  text-decoration-style: dashed;
-  font-weight: bold;
-}
-.nuxt-link:hover {
-  color: white;
-  text-decoration: none;
-  font-weight: bold;
-}
+/* @import url("https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css"); */
+/* 
+.main-content-section {
+  padding: 45px 0;
+  background: #0275d8;
+  height: 95vh;
+} */
 
-.navbar {
-  min-height: 20px;
-}
+/*vue-nav-bar stuff*/
+/* 
+.main-navbar-section {
+  background: #0275d8;
+} */
 
-.navbar-brand {
-  padding: 0 15px;
-  height: 20px;
-  line-height: 20px;
-}
+/* .vnb {
 
-.navbar-toggle {
-  /* (80px - button height 34px) / 2 = 23px */
-  margin-top: 1px;
-  padding: 9px 10px !important;
-}
+    .button-red {
+      background: #0275d8;
 
-@media (min-width: 768px) {
-  .navbar-nav > li > a {
-    /* (80px - line-height of 27px) / 2 = 26.5px */
-    padding-top: 2.5px;
-    padding-bottom: 2.5px;
-    line-height: 15px;
-  }
-}
+      &:hover {
+        background: darken(#0275d8, 10%);
+      }
+    }
 
+    &__menu-options {
+      &__option {
+        &__button {
+          &__icon {
+            svg {
+              margin-top: -3px;
+            }
+          }
+        }
+      }
+    }
+
+    &__popup {
+      &__bottom {
+        &__menu-options {
+          &__option {
+            &__link {
+              &__icon {
+                svg {
+                  margin-top: -4px;
+                }
+              }
+            }
+          }
+        }
+      }
+    } */
+
+    /* .custom-section-content {
+      width: 100%;
+
+      @media (min-width: 568px) {
+        width: 50%;
+      }
+
+      @media (min-width: 992px) {
+        width: 15%;
+      }
+
+      @media (min-width: 1200px) {
+        width: 20%;
+      }
+    }
+  } */
 </style>

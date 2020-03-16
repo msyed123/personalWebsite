@@ -7,12 +7,11 @@
             class="mx-auto"
             style="width: 85%"
             >
-                <!-- Hyperloop -->
-                <b-card
+                <!-- <b-card
                 class="mx-auto overflow-hidden"
-                >
+                > -->
                     <Projects />
-                </b-card>
+                <!-- </b-card> -->
             </b-card>
 
             <br />

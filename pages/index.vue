@@ -15,7 +15,9 @@
         <b-button variant="outline-primary" v-bind:to="{path: 'projects'}">
           Projects
         </b-button>
-        
+        <b-button variant="outline-primary" v-bind:to="{path: 'contact'}">
+          Contact
+        </b-button>
       </div>
     </div>
   </section>
@@ -33,30 +35,33 @@ export default {
 
 <style>
 .container {
-  margin: 0 auto;
-  min-height: 60vh;
+  margin: auto;
   display: flex;
-  justify-content: center;
-  align-items: center;
+  min-height: 100vh;
   text-align: center;
 }
 
 .title {
   font-family: monaco, monospace;
-  display: inline-block;
+  display: flow-root;
   font-weight: 300;
   font-size: 6vw;
   color: #35495e;
+  padding: 0;
+  word-spacing: -1.5vw;
   letter-spacing: 1px;
+  text-align: center;
 }
 
 .subtitle {
   font-family: monaco, monospace;
+  display: flow-root;
   font-weight: 300;
   font-size: 3vw;
   color: #526488;
-  word-spacing: 5px;
+  word-spacing: -0.5vw;
   padding-bottom: 15px;
+  text-align: center;
 }
 
 .links {

@@ -14,10 +14,13 @@
             >
                 <Loading />
             </b-card>
-            <b-card 
-            header="Interests"
-            class="mx-auto"
-            style="width: 85%"
+            <b-card
+                class="mx-auto"
+                style="width: 85%"
+                border-variant="primary"
+                header="Interests"
+                header-bg-variant="primary"
+                header-text-variant="white"
             v-else
             >
                 <b-list-group>
@@ -33,6 +36,7 @@
             <br />
             <b-card
             class="mx-auto overflow-hidden"
+            border-variant="primary"
             style="width: 85%"
             >
                 <b-row no-gutters align-v="center">

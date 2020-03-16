@@ -22,18 +22,25 @@
                 v-bind:header="project.data.project_title[0].text"
                 v-bind:footer="project.data.project_dates[0].text"
                 >
-                    <b-card-body>
-                        <b-card-img
-                            v-bind:src="project.data.project_image.url"
-                        ></b-card-img>
-                        <b-card-text>
-                            <b>Role: {{project.data.project_role[0].text}}</b>
-                            <li v-for="description in project.data.project_details" v-bind:key="description.text">
-                                {{description.text}}
-                            </li>
-                            <br />
-                        </b-card-text>
-                    </b-card-body>
+                    <b-row no-gutters align-v="center" align-h="center">
+                        <b-col md="4">
+                            <b-card-img
+                                v-bind:src="project.data.project_image.url"
+                                class="rounded-0"
+                            ></b-card-img>
+                        </b-col>
+                        <b-col md="8">
+                            <b-card-body>
+                                <b-card-text>
+                                    <b>Role: {{project.data.project_role[0].text}}</b>
+                                    <li v-for="description in project.data.project_details" v-bind:key="description.text">
+                                        {{description.text}}
+                                    </li>
+                                    <br />
+                                </b-card-text>
+                            </b-card-body>
+                        </b-col>
+                    </b-row>
                 </b-card>
             </li>
         </div>   
