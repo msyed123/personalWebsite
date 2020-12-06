@@ -3,12 +3,13 @@
 </template>
 
 <script>
+// import "vue-navigation-bar/dist/vue-navigation-bar.css";
 export default {
   data() {
     return {
       navbarOptions: {
         elementId: 'main-navbar',
-        isUsingVueRouter: false,
+        isUsingVueRouter: true,
         mobileBreakpoint: 992,
         brandImagePath: './',
         brandImageAltText: 'brand-image',
@@ -43,6 +44,17 @@ export default {
                 type: 'link',
                 subText: "The things make me lose sleep at night",
                 path: './projects'
+              },
+            ]
+          },
+          {
+            type: 'link',
+            text: 'Contact',
+            subMenuOptions: [
+              {
+                type: 'link',
+                subText: "I promise I am not currently known to bite",
+                path: './contact'
               },
             ]
           },

@@ -1,8 +1,6 @@
 import pkg from './package'
 
 export default {
-  mode: 'universal',
-
   /*
   ** Headers of the page
   */
@@ -27,6 +25,7 @@ export default {
   ** Global CSS
   */
   css: [
+    { src: 'vue-navigation-bar/dist/vue-navigation-bar.css', lang: 'css' },
   ],
 
   /*

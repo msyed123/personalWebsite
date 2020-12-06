@@ -47,17 +47,22 @@
                         <b-card-body title="About Me">
                             <b-card-text>
                                 I am a native born Floridian with the goal of trying to figure out how to make
-                                things go up. I have been very lucky to get to see the cutting edge of aerospace all
-                                my life because I grew up on the Space Coast. I would like to contribute to that 
-                                one day. Currently, I am enrolled in the Florida Institute of Technology, where I am
-                                as of now a junior pursuing my bachelors in aerospace engineering. I expect to graduate in
-                                the Spring semester of 2021. At school, I am actively involved in a variety of
-                                organizations. I am the current team lead of our Hyperloop team, which has become
-                                very succesful in recent years. I am also an active member of our local AIAA 
-                                chapter, for which I am the current conference chair. Finally, I am active in
-                                my local community, helping in STEM programs at local schools. In particular,
-                                I am helping develop a UAS intro course for middle school students as that was
-                                my first foray into aerospace too.
+                                things go up. Growing up on the Space Coast has greatly shaped who I am today.
+                                I was always lucky to be within a stones throw of some of the cutting-edge work in
+                                the field, and I quickly fell in love with the field. Currently, I am a senior at
+                                Florida Tech in Aerospace Engineering en route to graduate in the Spring of 2021. 
+                                I do my best to keep myself busy with project I find interesting, ranging from leading
+                                my school's inagural Hyperloop team, to desiging a solid-state sensor that can directly
+                                quantify the amount of liquid water in lunar regolith. Currently, I am a member of the
+                                <a href="https://research.fit.edu/dynamic-systems-and-controls-lab/">Florida Tech Dynamic Systems and Controls Lab</a>
+                                where my current research involves developing and characterizing a visual-inertial navigation
+                                control suite for eventual deployment on <a href="https://www.nasa.gov/astrobee">Astrobee</a>, a free-flying
+                                robot on the Internation Space Station. 
+
+                                I have always considered myself to be very fortunate. Because of this, I believe it is
+                                incumbent upon me to try to give back to those around me in any way that I can. I volunteer
+                                at schols around my district, mentoring a science research program at the middle school I
+                                graduated from. I also volunteer at a drone program at the high school I graduated from. 
                             </b-card-text>
                         </b-card-body>
                     </b-col>
