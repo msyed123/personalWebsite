@@ -50,8 +50,7 @@ export default {
 
     methods: {
         async getContacts() {
-            const api = await Prismic.getApi(process.env.PRISMIC_ENDPOINT, {accessToken: process.env.PRISMIC_TOKEN});
-
+            const api = await Prismic.getApi("https://msyed.cdn.prismic.io/api/v2", {accessToken: process.env.PRISMIC_TOKEN});
             const response = await api.query(
                 Prismic.Predicates.at("document.type", "contact"),
                 { orderings : '[my.contact.priority]'}
