@@ -62,7 +62,7 @@ export default {
   },
   
   env:{
-    PRISMIC_ENDPOINT: process.env.PRISMIC_ENPOINT || "localhost:3000",
+    PRISMIC_ENDPOINT: process.env.PRISMIC_ENPOINT || "https://msyed.cdn.prismic.io/api/v2",
     PRISMIC_TOKEN: process.env.PRISMIC_TOKEN || "null",
   },
 
