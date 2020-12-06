@@ -59,7 +59,6 @@ export default {
   ],
 
   router:{
-    base: '/~msyed2017/'
   },
 
   /*
