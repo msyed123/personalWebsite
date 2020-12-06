@@ -51,7 +51,6 @@
 import Loading from "~/components/Loading.vue";
 import Prismic from "prismic-javascript";
 import PrismicDom from "prismic-dom";
-import PrismicConfig from "~/prismic.config.js";
 
 export default {
     components: {
@@ -66,7 +65,7 @@ export default {
 
     methods: {
         async getProjects() {
-            const api = await Prismic.getApi(PrismicConfig.apiEndpoint, {accessToken: PrismicConfig.accessToken});
+            const api = await Prismic.getApi(process.env.PRISMIC_ENDPOINT, {accessToken: process.env.PRISMIC_TOKEN});
             const response = await api.query(
                 Prismic.Predicates.at("document.type", "project"),
                 { orderings : '[my.project.priority]'}
