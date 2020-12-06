@@ -8,7 +8,8 @@
     "dev": "nuxt",
     "build": "nuxt build",
     "start": "nuxt start",
-    "generate": "nuxt generate"
+    "generate": "nuxt generate",
+    "heroku-prebuild": "npm update --depth 999 @babel/preset-env && npm update --depth 999 @babel/compat-data"
   },
   "dependencies": {
     "@fortawesome/fontawesome-svg-core": "^1.2.30",
@@ -20,8 +21,13 @@
     "bootstrap": "^4.5.2",
     "bootstrap-vue": "^2.17.3",
     "cross-env": "^5.2.1",
+<<<<<<< HEAD
     "jquery": "^3.5.1",
     "nuxt": "^2.14.5",
+=======
+    "jquery": "^3.5.0",
+    "nuxt": "^2.11.0",
+>>>>>>> cf5e9961e636d392992fce0a90f860025bf5afa2
     "nuxt-fontawesome": "^0.4.0",
     "popper.js": "^1.16.1",
     "prismic-dom": "^2.2.3",
