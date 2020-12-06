@@ -8,8 +8,7 @@
     "dev": "nuxt",
     "build": "nuxt build",
     "start": "nuxt start",
-    "generate": "nuxt generate",
-    "heroku-prebuild": "npm update --depth 999 @babel/preset-env && npm update --depth 999 @babel/compat-data"
+    "generate": "nuxt generate"
   },
   "dependencies": {
     "@fortawesome/fontawesome-svg-core": "^1.2.30",
