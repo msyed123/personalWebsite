@@ -60,6 +60,11 @@ export default {
 
   router:{
   },
+  
+  env:{
+    PRISMIC_ENDPOINT: process.env.PRISMIC_ENPOINT || "localhost:3000",
+    PRISMIC_TOKEN: process.env.PRISMIC_TOKEN || "null",
+  },
 
   /*
   ** Build configuration
