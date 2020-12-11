@@ -3,8 +3,6 @@
 </template>
 
 <script>
-import VueNavigationBar from "vue-navigation-bar";
-Vue.component("vue-navigation-bar", VueNavigationBar);
 export default {
   data() {
     return {
@@ -43,7 +41,7 @@ export default {
             subMenuOptions: [
               {
                 type: 'link',
-                subText: "The things make me lose sleep at night",
+                subText: "My bringers of insomnia",
                 path: './projects'
               },
             ]
@@ -67,72 +65,4 @@ export default {
 </script>
 
 <style>
-/* @import url("https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css"); */
-/* 
-.main-content-section {
-  padding: 45px 0;
-  background: #0275d8;
-  height: 95vh;
-} */
-
-/*vue-nav-bar stuff*/
-/* 
-.main-navbar-section {
-  background: #0275d8;
-} */
-
-/* .vnb {
-
-    .button-red {
-      background: #0275d8;
-
-      &:hover {
-        background: darken(#0275d8, 10%);
-      }
-    }
-
-    &__menu-options {
-      &__option {
-        &__button {
-          &__icon {
-            svg {
-              margin-top: -3px;
-            }
-          }
-        }
-      }
-    }
-
-    &__popup {
-      &__bottom {
-        &__menu-options {
-          &__option {
-            &__link {
-              &__icon {
-                svg {
-                  margin-top: -4px;
-                }
-              }
-            }
-          }
-        }
-      }
-    } */
-
-    /* .custom-section-content {
-      width: 100%;
-
-      @media (min-width: 568px) {
-        width: 50%;
-      }
-
-      @media (min-width: 992px) {
-        width: 15%;
-      }
-
-      @media (min-width: 1200px) {
-        width: 20%;
-      }
-    }
-  } */
 </style>
