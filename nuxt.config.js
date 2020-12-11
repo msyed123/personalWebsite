@@ -25,7 +25,6 @@ export default {
   ** Global CSS
   */
   css: [
-    { src: 'vue-navigation-bar/dist/vue-navigation-bar.css', lang: 'css' },
   ],
 
   /*

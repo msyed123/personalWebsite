@@ -49,14 +49,14 @@
                                 I am a native born Floridian with the goal of trying to figure out how to make
                                 things go up. Growing up on the Space Coast has greatly shaped who I am today.
                                 I was always lucky to be within a stones throw of some of the cutting-edge work in
-                                the field, and I quickly fell in love with the field. Currently, I am a senior at
+                                the field, and I quickly knew that aerospace was for me. Currently, I am a senior at
                                 Florida Tech in Aerospace Engineering en route to graduate in the Spring of 2021. 
                                 I do my best to keep myself busy with project I find interesting, ranging from leading
                                 my school's inagural Hyperloop team, to desiging a solid-state sensor that can directly
                                 quantify the amount of liquid water in lunar regolith. Currently, I am a member of the
-                                <a href="https://research.fit.edu/dynamic-systems-and-controls-lab/">Florida Tech Dynamic Systems and Controls Lab</a>
+                                <a href="https://research.fit.edu/dynamic-systems-and-controls-lab/" target="_blank">Florida Tech Dynamic Systems and Controls Lab</a>
                                 where my current research involves developing and characterizing a visual-inertial navigation
-                                control suite for eventual deployment on <a href="https://www.nasa.gov/astrobee">Astrobee</a>, a free-flying
+                                control suite for eventual deployment on <a href="https://www.nasa.gov/astrobee" target="_blank">Astrobee</a>, a free-flying
                                 robot on the Internation Space Station. 
 
                                 I have always considered myself to be very fortunate. Because of this, I believe it is

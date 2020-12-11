@@ -1,9 +1,10 @@
 <template>
-  <nav-bar :options="navbarOptions" />
+  <vue-navigation-bar :options="navbarOptions" />
 </template>
 
 <script>
-// import "vue-navigation-bar/dist/vue-navigation-bar.css";
+import VueNavigationBar from "vue-navigation-bar";
+Vue.component("vue-navigation-bar", VueNavigationBar);
 export default {
   data() {
     return {
