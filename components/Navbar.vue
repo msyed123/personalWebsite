@@ -3,6 +3,7 @@
 </template>
 
 <script>
+import "vue-navigation-bar/dist/vue-navigation-bar.css";
 export default {
   data() {
     return {
