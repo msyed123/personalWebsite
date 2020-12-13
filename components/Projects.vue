@@ -36,7 +36,14 @@
                                     <li v-for="description in project.data.project_details" v-bind:key="description.text">
                                         {{description.text}}
                                     </li>
-                                    <br />
+                                    <div v-if="project.data.docs.length > 0">
+                                        <hr />
+                                        <li v-for="document in project.data.docs" v-bind:key="document.doc_name[0].text">
+                                            <a class="btn btn-outline-primary" v-bind:href="document.doc.url" role="button" target="_blank">
+                                                {{document.doc_name[0].text}}
+                                            </a>
+                                        </li>
+                                    </div>
                                 </b-card-text>
                             </b-card-body>
                         </b-col>
