@@ -49,6 +49,17 @@ export default {
           },
           {
             type: 'link',
+            text: 'Courses',
+            subMenuOptions: [
+              {
+                type: 'link',
+                subText: "The stuff that gives my diploma meaning",
+                path: './courses'
+              },
+            ]
+          },
+          {
+            type: 'link',
             text: 'Contact',
             subMenuOptions: [
               {

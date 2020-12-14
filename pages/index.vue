@@ -15,6 +15,9 @@
         <b-button variant="outline-primary" v-bind:to="{path: 'projects'}">
           Projects
         </b-button>
+        <b-button variant="outline-primary" v-bind:to="{path: 'courses'}">
+          Courses
+        </b-button>
         <b-button variant="outline-primary" v-bind:to="{path: 'contact'}">
           Contact
         </b-button>
