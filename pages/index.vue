@@ -9,18 +9,20 @@
         Aerospace Engineer
       </h2>
       <div class="links">
-        <b-button variant="outline-primary" v-bind:to="{path: 'about'}">
-          About
-        </b-button>
-        <b-button variant="outline-primary" v-bind:to="{path: 'projects'}">
-          Projects
-        </b-button>
-        <b-button variant="outline-primary" v-bind:to="{path: 'courses'}">
-          Courses
-        </b-button>
-        <b-button variant="outline-primary" v-bind:to="{path: 'contact'}">
-          Contact
-        </b-button>
+        <div class="btn-group">
+          <b-button variant="outline-primary" v-bind:to="{path: 'about'}">
+            About
+          </b-button>
+          <b-button variant="outline-primary" v-bind:to="{path: 'projects'}">
+            Projects
+          </b-button>
+          <b-button variant="outline-primary" v-bind:to="{path: 'courses'}">
+            Courses
+          </b-button>
+          <b-button variant="outline-primary" v-bind:to="{path: 'contact'}">
+            Contact
+          </b-button>
+        </div>
       </div>
     </div>
   </section>
@@ -69,6 +71,7 @@ export default {
 
 .links {
   padding-top: 15px;
+  padding-bottom: 15px;
   font-family: monaco, monospace;
 }
 </style>
