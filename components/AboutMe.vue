@@ -3,38 +3,6 @@
         <div>
             <br />
             <b-card
-            no-body
-            style="width: 85%"
-            border-variant="primary"
-            header-bg-variant="primary"
-            header-text-variant="white" 
-            class="mx-auto"
-            header="Loading..."
-            v-if="loading"
-            >
-                <Loading />
-            </b-card>
-            <b-card
-                class="mx-auto"
-                style="width: 85%"
-                border-variant="primary"
-                header="Interests"
-                header-bg-variant="primary"
-                header-text-variant="white"
-            v-else
-            >
-                <b-list-group>
-                    <b-list-group-item v-for="interest in interests" v-bind:key="interest.data.priority">
-                        {{ interest.data.name[0].text }}
-                    </b-list-group-item>
-                </b-list-group>
-            </b-card>
-
-            <br />
-            <Progress />
-
-            <br />
-            <b-card
             class="mx-auto overflow-hidden"
             border-variant="primary"
             style="width: 85%"
@@ -69,6 +37,39 @@
                 </b-row>
             </b-card>
             <br />
+            <b-card
+            no-body
+            style="width: 85%"
+            border-variant="primary"
+            header-bg-variant="primary"
+            header-text-variant="white" 
+            class="mx-auto"
+            header="Loading..."
+            v-if="loading"
+            >
+                <Loading />
+            </b-card>
+            <b-card
+                class="mx-auto"
+                style="width: 85%"
+                border-variant="primary"
+                header="Interests"
+                header-bg-variant="primary"
+                header-text-variant="white"
+            v-else
+            >
+                <b-list-group>
+                    <b-list-group-item v-for="interest in interests" v-bind:key="interest.data.priority">
+                        {{ interest.data.name[0].text }}
+                    </b-list-group-item>
+                </b-list-group>
+            </b-card>
+
+            <br />
+            <Progress />
+
+            <br />
+            
         </div>
     </section>
 </template>

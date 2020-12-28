@@ -11,11 +11,6 @@ export default {
         elementId: 'main-navbar',
         isUsingVueRouter: true,
         mobileBreakpoint: 992,
-        brandImagePath: './',
-        brandImageAltText: 'brand-image',
-        collapseButtonImageOpen: require('../static/collapse-menu-dark.png'),
-        collapseButtonImageClose: require('../static/chevron-down.png'),
-        showBrandImageInMobilePopup: true,
         ariaLabelMainNav: 'Main Navigation',
         tooltipAnimationType: 'shift-away',
         menuOptionsLeft: [
@@ -25,49 +20,52 @@ export default {
             path: './'
           },
           {
-            type: 'link',
+            type: 'button',
             text: 'About',
-            path: './about',
-            subMenuOptions: [
-              {
-                type: 'link',
-                subText: "Stuff I find interesting and think I'm OK-ish at",
-                path: './about'
-              },
-            ]
+            path: {name: "about"}
+            // subMenuOptions: [
+            //   {
+            //     type: 'link',
+            //     subText: "Stuff I find interesting and think I'm OK-ish at",
+            //     path: {name: "about"}
+            //   },
+            // ]
           },
           {
-            type: 'link',
+            type: 'button',
             text: 'Projects',
-            subMenuOptions: [
-              {
-                type: 'link',
-                subText: "My bringers of insomnia",
-                path: './projects'
-              },
-            ]
+            path: {name: "projects"}
+            // subMenuOptions: [
+            //   {
+            //     type: 'link',
+            //     subText: "My bringers of insomnia",
+            //     path: './projects'
+            //   },
+            // ]
           },
           {
-            type: 'link',
+            type: 'button',
             text: 'Courses',
-            subMenuOptions: [
-              {
-                type: 'link',
-                subText: "The stuff that gives my diploma meaning",
-                path: './courses'
-              },
-            ]
+            path: {name: "courses"}
+            // subMenuOptions: [
+            //   {
+            //     type: 'link',
+            //     subText: "The stuff that gives my diploma meaning",
+            //     path: './courses'
+            //   },
+            // ]
           },
           {
-            type: 'link',
+            type: 'button',
             text: 'Contact',
-            subMenuOptions: [
-              {
-                type: 'link',
-                subText: "I promise I am not currently known to bite",
-                path: './contact'
-              },
-            ]
+            path: {name: "contact"}
+            // subMenuOptions: [
+            //   {
+            //     type: 'link',
+            //     subText: "I promise I am not currently known to bite",
+            //     path: './contact'
+            //   },
+            // ]
           },
         ],
       }
