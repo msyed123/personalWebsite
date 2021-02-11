@@ -27,7 +27,7 @@
                     class="mx-auto"
                     border-variant="primary"
                     v-bind:header = "topic.data.title[0].text"
-                    header-text-variant="primary"
+                    header-text-variant="dark"
                     >
                         <li v-for="tool in topic.data.tools" v-bind:key="tool.name">
                             <div class="task">{{tool.name[0].text}}</div>
