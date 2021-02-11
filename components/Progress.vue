@@ -22,12 +22,21 @@
         header-text-variant="white"
         >
             <ul>
-                <li v-for="skill in skills" v-bind:key="skill.task">
-                    <div class="task">{{skill.data.task[0].text}}</div>
-                    <div class="bar">
-                        <div class="progress" v-bind:style = "{'background':skill.data.color, 'width':skill.data.percent+'%'}"></div>
-                        <span class="percent">{{skill.data.percent}}%</span>
-                    </div>
+                <li v-for="topic in topics" v-bind:key="topic.title">
+                    <b-card
+                    class="mx-auto"
+                    border-variant="primary"
+                    v-bind:header = "topic.data.title[0].text"
+                    header-text-variant="primary"
+                    >
+                        <li v-for="tool in topic.data.tools" v-bind:key="tool.name">
+                            <div class="task">{{tool.name[0].text}}</div>
+                            <div class="bar">
+                                <div class="progress" v-bind:style = "{'background':topic.data.color, 'width':tool.confidence+'%'}"></div>
+                                <span class="percent">{{tool.confidence}}%</span>
+                            </div>
+                        </li>
+                    </b-card>
                 </li>
             </ul>
         </b-card>
@@ -38,7 +47,7 @@
 <script>
 import Loading from "~/components/Loading.vue";
 import Prismic from "prismic-javascript";
-import PrismicDom from "prismic-dom";
+// import PrismicDom from "prismic-dom";
 
 export default {
     components: {
@@ -47,7 +56,7 @@ export default {
     data() {
         return{
             loading: true,
-            skills: []
+            topics: []
         };
     },
 
@@ -56,10 +65,10 @@ export default {
             const api = await Prismic.getApi(process.env.PRISMIC_ENDPOINT, {accessToken: process.env.PRISMIC_TOKEN});
 
             const response = await api.query(
-                Prismic.Predicates.at("document.type", "skill"),
-                { orderings : '[my.project.percent desc]'}
+                Prismic.Predicates.at("document.type", "topic"),
+                { orderings : '[document.priority desc]'}
             )
-            this.skills = response.results;
+            this.topics = response.results;
             this.loading = false;
         }
     },
