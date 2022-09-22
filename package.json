@@ -32,7 +32,7 @@
     "vue-next-level-scroll": "^1.2.0"
   },
   "devDependencies": {
-    "nodemon": "^1.19.4",
+    "nodemon": "^2.0.20",
     "tailwindcss": "^0.7.4"
   }
 }
