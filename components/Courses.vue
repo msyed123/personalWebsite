@@ -12,7 +12,7 @@
             </b-card>
         </div>
         <div v-else>
-            <li v-for="course in courses" v-bind:key="course.data.course_name">
+            <li v-for="course in courses" v-bind:key="course.data.course_name[0].text">
                 <b-card 
                 no-body
                 border-variant="primary"
@@ -45,7 +45,6 @@
 <script>
 import Loading from "~/components/Loading.vue";
 import Prismic from "prismic-javascript";
-import PrismicDom from "prismic-dom";
 
 export default {
     components: {

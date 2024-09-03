@@ -1,78 +1,75 @@
 <template>
-  <vue-navigation-bar :options="navbarOptions" />
-</template>
-
-<script>
-require("vue-navigation-bar/dist/vue-navigation-bar.css");
-export default {
-  data() {
-    return {
-      navbarOptions: {
-        elementId: 'main-navbar',
-        isUsingVueRouter: true,
-        mobileBreakpoint: 992,
-        ariaLabelMainNav: 'Main Navigation',
-        tooltipAnimationType: 'shift-away',
+    <b-navbar toggleable="lg" type="dark" variant="custom" class="custom-navbar">
+      <b-navbar-brand path="/">Mamoon Syed</b-navbar-brand>
+      <b-navbar-toggle target="nav-collapse"></b-navbar-toggle>
+  
+      <b-collapse id="nav-collapse" is-nav>
+        <b-navbar-nav>
+          <b-nav-item v-for="item in menuOptionsLeft" :key="item.text" :to="item.path">
+            {{ item.text }}
+          </b-nav-item>
+  
+          <!-- If you want to add dropdowns in the future, you can use b-nav-item-dropdown -->
+          <!-- Example of a dropdown menu -->
+          <!--
+          <b-nav-item-dropdown text="More">
+            <b-dropdown-item href="#">Option 1</b-dropdown-item>
+            <b-dropdown-item href="#">Option 2</b-dropdown-item>
+            <b-dropdown-divider></b-dropdown-divider>
+            <b-dropdown-item href="#">Separated link</b-dropdown-item>
+          </b-nav-item-dropdown>
+          -->
+        </b-navbar-nav>
+      </b-collapse>
+    </b-navbar>
+  </template>
+  
+  <script>
+  export default {
+    data() {
+      return {
         menuOptionsLeft: [
-          {
-            type: 'button',
-            text: 'Home',
-            path: './'
-          },
-          {
-            type: 'button',
-            text: 'About',
-            path: {name: "about"}
-            // subMenuOptions: [
-            //   {
-            //     type: 'link',
-            //     subText: "Stuff I find interesting and think I'm OK-ish at",
-            //     path: {name: "about"}
-            //   },
-            // ]
-          },
-          {
-            type: 'button',
-            text: 'Projects',
-            path: {name: "projects"}
-            // subMenuOptions: [
-            //   {
-            //     type: 'link',
-            //     subText: "My bringers of insomnia",
-            //     path: './projects'
-            //   },
-            // ]
-          },
-          {
-            type: 'button',
-            text: 'Courses',
-            path: {name: "courses"}
-            // subMenuOptions: [
-            //   {
-            //     type: 'link',
-            //     subText: "The stuff that gives my diploma meaning",
-            //     path: './courses'
-            //   },
-            // ]
-          },
-          {
-            type: 'button',
-            text: 'Contact',
-            path: {name: "contact"}
-            // subMenuOptions: [
-            //   {
-            //     type: 'link',
-            //     subText: "I promise I am not currently known to bite",
-            //     path: './contact'
-            //   },
-            // ]
-          },
-        ],
-      }
+          { text: 'Home', path: '/' },
+          { text: 'About', path: { name: 'about' } },
+          { text: 'Projects', path: { name: 'projects' } },
+          { text: 'Courses', path: { name: 'courses' } },
+          { text: 'Contact', path: { name: 'contact' } },
+        ]
+      };
     }
-  },
-};
-</script>
+  };
+  </script>
+  
+  <style scoped>
+  /* More specific selectors */
+    .custom-navbar {
+    background: linear-gradient(45deg, #2e1fff, #a8a8a8) !important; 
+    border-bottom: 3px solid #2e1fff !important; 
+    }
 
-<style>
-</style>
+    .b-navbar-brand {
+    font-family: 'Montserrat', sans-serif !important;
+    font-weight: 700 !important;
+    color: #ff4081 !important; 
+    }
+
+    .b-navbar-nav .nav-link {
+    color: #ffffff !important; 
+    font-family: 'Roboto', sans-serif !important;
+    font-weight: 500 !important;
+    padding: 0.75rem 1rem !important;
+    transition: all 0.3s ease !important;
+    }
+
+    .b-navbar-nav .nav-link:hover {
+    color: #ff4081 !important; 
+    background-color: #444 !important; 
+    border-radius: 5px !important;
+    }
+
+    .b-navbar-nav .nav-link.active {
+    color: #ff4081 !important; 
+    background-color: #444 !important; 
+    border-radius: 5px !important;
+    }
+  </style>
