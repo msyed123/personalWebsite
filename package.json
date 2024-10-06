@@ -21,7 +21,7 @@
     "bootstrap-vue": "^2.23.1",
     "cross-env": "^5.2.1",
     "jquery": "^3.7.1",
-    "nuxt": "^2.18.1",
+    "nuxt": "^3.13.2",
     "nuxt-fontawesome": "^0.4.0",
     "popper.js": "^1.16.1",
     "prismic-dom": "^2.2.7",
@@ -33,6 +33,6 @@
   },
   "devDependencies": {
     "nodemon": "^2.0.22",
-    "tailwindcss": "^0.7.4"
+    "tailwindcss": "^3.4.13"
   }
 }
