@@ -1,5 +1,5 @@
 <template>
-  <section class="container">
+  <section class="home-container">
     <div>
       <Logo />
       <h1 class="title">
@@ -38,10 +38,13 @@ export default {
 }
 </script>
 
-<style>
-.container {
+<style scoped>
+.home-container {
   margin: auto;
   display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
   min-height: 100vh;
   text-align: center;
 }

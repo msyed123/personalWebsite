@@ -54,16 +54,8 @@
   };
   </script>
   
-  <style>
-  body{
-    font-family: monaco, monospace;
-    font-size: 6mm;
-  }
-  *{
-    padding: 0;
-    margin: 0;
-    box-sizing:border-box;
-  }
+<style scoped>
+  /* Keep styles local to DraftOrder to avoid global side-effects */
   li{
     list-style-type: none;
     padding-bottom: 20px

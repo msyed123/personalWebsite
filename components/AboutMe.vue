@@ -110,7 +110,7 @@ export default {
 }
 </script>
 
-<style>
+<style scoped>
     h1{
         padding-top: 20px;
         padding-left: 20px;

@@ -1,6 +1,6 @@
 <template>
-    <b-navbar toggleable="lg" type="dark" variant="custom" class="custom-navbar">
-      <b-navbar-brand path="/">Mamoon Syed</b-navbar-brand>
+    <b-navbar toggleable="lg" type="dark" variant="custom" class="custom-navbar shadow-sm">
+      <b-navbar-brand to="/">Mamoon Syed</b-navbar-brand>
       <b-navbar-toggle target="nav-collapse"></b-navbar-toggle>
   
       <b-collapse id="nav-collapse" is-nav>
@@ -41,35 +41,45 @@
   </script>
   
   <style scoped>
-  /* More specific selectors */
-    .custom-navbar {
-    background: linear-gradient(45deg, #2e1fff, #a8a8a8) !important; 
-    border-bottom: 3px solid #2e1fff !important; 
-    }
+  /* Navbar styling and spacing */
+  .custom-navbar {
+    background: linear-gradient(90deg, #4f46e5, #7c3aed) !important; /* indigo -> purple */
+    border-bottom: 0 !important;
+    padding: 0.5rem 1rem !important; /* vertical padding */
+    min-height: 58px; /* consistent height */
+  }
 
-    .b-navbar-brand {
+  /* Brand */
+  .navbar-brand {
     font-family: 'Montserrat', sans-serif !important;
     font-weight: 700 !important;
-    color: #ff4081 !important; 
-    }
+    color: #ffffff !important;
+    letter-spacing: 0.2px;
+    margin-right: 1rem;
+  }
 
-    .b-navbar-nav .nav-link {
-    color: #ffffff !important; 
+  /* Links */
+  .navbar-nav .nav-link {
+    color: #f4f4ff !important;
     font-family: 'Roboto', sans-serif !important;
     font-weight: 500 !important;
-    padding: 0.75rem 1rem !important;
-    transition: all 0.3s ease !important;
-    }
+    padding: 0.5rem 0.75rem !important;
+    transition: color .2s ease, background-color .2s ease !important;
+    border-radius: 6px;
+  }
 
-    .b-navbar-nav .nav-link:hover {
-    color: #ff4081 !important; 
-    background-color: #444 !important; 
-    border-radius: 5px !important;
-    }
+  .navbar-nav .nav-link:hover {
+    color: #ffffff !important;
+    background-color: rgba(255,255,255,0.12) !important;
+  }
 
-    .b-navbar-nav .nav-link.active {
-    color: #ff4081 !important; 
-    background-color: #444 !important; 
-    border-radius: 5px !important;
-    }
+  .navbar-nav .nav-link.active {
+    color: #ffffff !important;
+    background-color: rgba(255,255,255,0.22) !important;
+  }
+  
+  /* Collapse layout spacing */
+  @media (max-width: 991.98px) {
+    #nav-collapse { padding-top: .25rem; }
+  }
   </style>

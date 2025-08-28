@@ -45,7 +45,7 @@
                 :disabled="isBusy || currentTeamIndex < 0 || !wheelReady"
                 @click="spinAndReveal"
                 v-show="currentTeamIndex >= 0"
-                block size="lg" variant="danger">
+                size="lg" variant="danger">
                 Reveal Pick {{ currentTeamIndex + 1 }}
               </b-button>
             </div>
@@ -352,7 +352,7 @@
   };
   </script>
   
-  <style>
+  <style scoped>
   /* base */
   .draft-root { font-family: monaco, monospace; }
   
@@ -372,7 +372,17 @@
     align-items:center;
     gap:12px;
   }
-  .controls { width:min(720px,100%); }
+  .controls {
+    width: 720px;           /* match wheel size */
+    max-width: 100%;
+    display: flex;
+    justify-content: center;
+  }
+  .controls .reveal-btn {
+    display: inline-block;
+    width: 100%;            /* fills the controls width (<= 720px) */
+    max-width: 720px;
+  }
   .hint { margin-top:8px; text-align:center; font-size:.9rem; color:#666; }
   
   .right { padding-right:6px; overflow-x:hidden; }

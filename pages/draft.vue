@@ -59,9 +59,8 @@
   }
   </script>
   
-  <style>
-  /* No outer page scroll */
-  html, body { height: 100%; overflow: hidden; }
+  <style scoped>
+  /* Removed global html/body overflow hidden to restore site scroll */
   
   /* Shell: padding included in height so bottom gap is always visible */
   .draft-shell {

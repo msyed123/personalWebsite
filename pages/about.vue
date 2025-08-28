@@ -1,5 +1,7 @@
 <template>
+  <section class="container py-4">
     <AboutMe />
+  </section>
 </template>
 
 <script>
@@ -11,6 +13,6 @@ export default {
 }
 </script>
 
-<style>
-
+<style scoped>
+/* Page-level spacing handled by container py-4 */
 </style>

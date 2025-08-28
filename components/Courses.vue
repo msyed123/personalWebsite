@@ -75,16 +75,7 @@ export default {
 };
 </script>
 
-<style>
-body{
-	font-family: monaco, monospace;
-}
-
-*{
-	padding: 0;
-	margin: 0;
-	box-sizing:border-box;
-}
+<style scoped>
 
 li{
 	list-style-type: none;

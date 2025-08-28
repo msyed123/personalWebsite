@@ -79,11 +79,8 @@ export default {
 };
 </script>
 
-<style>
-body{
-	font-family: monaco, monospace;
-}
-
+<style scoped>
+/* Scoped to the progress component */
 *{
 	padding: 0;
 	margin: 0;
