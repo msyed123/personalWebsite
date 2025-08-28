@@ -85,9 +85,9 @@
                 <b-card-text>
                   <b-alert show variant="primary" class="pick">Pick {{ pickNumber(index) }}</b-alert>
                   <div class="dude-name">{{ dude.data.name[0].text }}</div><br>
-                  <div class="misc-text">2023 Final Standing: {{ dude.data.standing }}</div><br>
-                  <div class="misc-text">2023 Record: {{ dude.data.previousrecord[0].text }}</div><br>
-                  <div class="misc-text">2023 Team Name: {{ dude.data.previousteamname[0].text }}</div><br>
+                  <div class="misc-text">2024 Final Standing: {{ dude.data.standing }}</div><br>
+                  <div class="misc-text">2024 Record: {{ dude.data.previousrecord[0].text }}</div><br>
+                  <div class="misc-text">2024 Team Name: {{ dude.data.previousteamname[0].text }}</div><br>
                 </b-card-text>
               </b-card>
             </li>
