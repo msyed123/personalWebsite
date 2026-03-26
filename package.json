@@ -11,6 +11,9 @@
     "generate": "nuxt generate",
     "preview": "nuxt preview"
   },
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "dependencies": {
     "@nuxtjs/prismic": "^3.0.2",
     "nuxt": "~3.11.0",
