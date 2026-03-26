@@ -45,7 +45,7 @@
 <script setup>
 import { usePrismic, useAsyncData } from '#imports'
 
-const { $prismic } = useNuxtApp()
+const { client } = usePrismic()
 
 useHead({
   title: 'Terminal | Mamoon Syed',
@@ -55,6 +55,6 @@ useHead({
 })
 
 const { data: repoInfo, pending, error } = await useAsyncData('repoPing', () => {
-    return $prismic.client.getRepository()
+    return client.getRepository()
 })
 </script>
