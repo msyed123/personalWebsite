@@ -57,7 +57,7 @@ const route = useRoute()
 const availableDirs = ['about', 'projects', 'courses', 'contact', 'home']
 const cmdState = ref('normal') // 'normal' | 'draft_password'
 
-const draftUnlocked = useState('draftUnlocked', () => false)
+const draftUnlocked = ref(false)
 
 const handleCommand = () => {
   const input = cmdInput.value.trim().toLowerCase()
