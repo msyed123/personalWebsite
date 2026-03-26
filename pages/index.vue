@@ -55,4 +55,6 @@ useHead({
 })
 
 const { data: repoInfo, pending, error } = await useAsyncData('repoPing', () => {
+    return $prismic.client.getRepository()
+})
 </script>

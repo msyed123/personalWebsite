@@ -42,4 +42,11 @@ useHead({
 })
 
 const { data: contacts, pending, error } = await useAsyncData('contacts', () => {
+    return client.getAllByType('contact', {
+        orderings: {
+            field: 'my.contact.priority',
+            direction: 'asc'
+        }
+    })
+})
 </script>

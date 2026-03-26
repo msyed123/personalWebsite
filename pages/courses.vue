@@ -53,4 +53,11 @@ useHead({
 })
 
 const { data: courses, pending, error } = await useAsyncData('courses', () => {
+    return client.getAllByType('course', {
+        orderings: {
+            field: 'my.course.priority',
+            direction: 'asc'
+        }
+    })
+})
 </script>
