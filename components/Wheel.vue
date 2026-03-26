@@ -27,8 +27,10 @@
       const dpr = window.devicePixelRatio || 1;
       const ctx = canvas.getContext("2d");
   
-      canvas.style.width  = this.size + "px";
-      canvas.style.height = this.size + "px";
+      canvas.style.width  = "100%";
+      canvas.style.height = "auto";
+      canvas.style.maxWidth = this.size + "px";
+      canvas.style.aspectRatio = "1 / 1";
       canvas.width  = Math.floor(this.size * dpr);
       canvas.height = Math.floor(this.size * dpr);
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);

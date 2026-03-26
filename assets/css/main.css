@@ -1,0 +1,66 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-terminal-black text-terminal-amber font-mono overflow-x-hidden m-0 p-0;
+  }
+}
+
+.terminal-container {
+  @apply relative min-h-screen flex flex-col p-4 sm:p-8;
+}
+
+/* CRT Scanline effect */
+.scanlines {
+  @apply pointer-events-none fixed top-0 left-0 w-full h-full z-50;
+  background: linear-gradient(
+    to bottom,
+    rgba(255,176,0, 0),
+    rgba(255,176,0, 0) 50%,
+    rgba(0, 0, 0, 0.1) 50%,
+    rgba(0, 0, 0, 0.1)
+  );
+  background-size: 100% 4px;
+}
+
+.scanlines::before {
+  content: "";
+  @apply absolute top-0 left-0 w-full h-[5px] bg-white opacity-10 animate-scanline;
+}
+
+/* Flicker effect */
+.flicker {
+  animation: flicker 0.15s infinite;
+}
+
+@keyframes flicker {
+  0% { opacity: 0.95; }
+  100% { opacity: 1; }
+}
+
+/* Glowing text */
+.glow {
+  text-shadow: 0 0 5px rgba(255,176,0,0.8), 0 0 10px rgba(255,176,0,0.3);
+}
+.glow-blue {
+  text-shadow: 0 0 5px rgba(0,210,255,0.8), 0 0 10px rgba(0,210,255,0.3);
+}
+
+/* Scrollbar customization */
+::-webkit-scrollbar {
+  width: 10px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-terminal-black border-l border-terminal-amber-dim;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-terminal-amber-dim rounded-none;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-terminal-amber;
+}

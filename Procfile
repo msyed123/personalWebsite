@@ -1,1 +1,1 @@
-web: nuxt start -p $PORT
+web: node .output/server/index.mjs
