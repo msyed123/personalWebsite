@@ -65,16 +65,9 @@
 import { usePrismic } from '#imports'
 const { client } = usePrismic()
 
-const { data: projects, pending, error } = await useAsyncData('projects', () => {
-    return client.getAllByType('project', {
-        orderings: {
-            field: 'my.project.priority',
-            direction: 'asc'
-        }
-    })
-})
-
 useHead({
   title: 'Projects | Mamoon Syed',
 })
+
+const { data: projects, pending, error } = await useAsyncData('projects', () => {
 </script>

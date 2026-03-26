@@ -4,10 +4,16 @@ export default defineNuxtConfig({
     '@nuxtjs/tailwindcss',
     '@nuxtjs/prismic'
   ],
-  prismic: {
-    endpoint: process.env.PRISMIC_ENDPOINT || "msyed",
-    clientConfig: {
-      accessToken: process.env.PRISMIC_TOKEN
+  runtimeConfig: {
+    prismic: {
+      clientConfig: {
+        accessToken: process.env.PRISMIC_TOKEN || ""
+      }
+    },
+    public: {
+      prismic: {
+        endpoint: process.env.PRISMIC_ENDPOINT || "msyed"
+      }
     }
   },
   tailwindcss: {
