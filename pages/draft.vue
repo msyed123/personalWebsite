@@ -20,12 +20,13 @@ import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import Draft from '~/components/Draft.vue'
 
-const draftUnlocked = useState('draftUnlocked', () => false)
 const router = useRouter()
 
-if (!draftUnlocked.value) {
-  router.push('/')
-}
+onMounted(() => {
+  if (sessionStorage.getItem('draftUnlocked') !== '1') {
+    router.push('/')
+  }
+})
 
 const shell = ref(null)
 const padY = ref(16)

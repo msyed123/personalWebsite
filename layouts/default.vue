@@ -68,7 +68,8 @@ const handleCommand = () => {
       cmdOutput.value = `[AUTHENTICATION SUCCESSFUL]\nAccess granted. Initializing draft sequence...`
       cmdState.value = 'normal'
       draftUnlocked.value = true
-      router.push('/draft').then(() => window.scrollTo(0, 0))
+      if (process.client) sessionStorage.setItem('draftUnlocked', '1')
+      router.push('/draft').then(() => { if (process.client) window.scrollTo(0, 0) })
     } else {
       cmdOutput.value = `[AUTHENTICATION FAILED]\nIncorrect password. Access denied.`
       cmdState.value = 'normal'
@@ -101,13 +102,13 @@ const handleCommand = () => {
   if (input.startsWith('cd ')) {
     const dir = input.split(' ')[1]
     if (dir === '..') {
-      router.push('/').then(() => window.scrollTo(0, 0))
+      router.push('/').then(() => { if (process.client) window.scrollTo(0, 0) })
       cmdOutput.value = `Navigated to root`
       return
     }
     
     if (dir === 'home' || dir === '/') {
-      router.push('/').then(() => window.scrollTo(0, 0))
+      router.push('/').then(() => { if (process.client) window.scrollTo(0, 0) })
       cmdOutput.value = `Navigated to ${dir}`
       return
     }
@@ -119,7 +120,7 @@ const handleCommand = () => {
     }
 
     if (availableDirs.includes(dir)) {
-      router.push(`/${dir}`).then(() => window.scrollTo(0, 0))
+      router.push(`/${dir}`).then(() => { if (process.client) window.scrollTo(0, 0) })
       cmdOutput.value = `Navigated to ${dir}`
     } else {
       cmdOutput.value = `-bash: cd: ${dir}: No such file or directory`
