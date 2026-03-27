@@ -12,17 +12,17 @@
     "preview": "nuxt preview"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": "20.x"
   },
   "dependencies": {
     "@nuxtjs/prismic": "^3.0.2",
-    "nuxt": "~3.11.0",
+    "nuxt": "^3.16.0",
     "vue": "^3.4.0"
   },
   "devDependencies": {
     "@nuxtjs/tailwindcss": "^6.8.0",
     "autoprefixer": "^10.4.18",
-    "nuxi": "~3.11.1",
+    "nuxi": "^3.16.0",
     "postcss": "^8.4.35",
     "tailwindcss": "^3.4.1"
   }
