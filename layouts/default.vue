@@ -25,8 +25,13 @@
     </main>
     
     <footer class="sticky bottom-0 z-50 bg-terminal-black/95 backdrop-blur-md border-t border-terminal-amber-dim p-4 w-full flex flex-col gap-2 text-sm md:text-base opacity-95">
-      <!-- Output window rendered directly in the CLI -->
-      <div v-if="cmdOutput" class="text-terminal-amber-dim whitespace-pre-line w-full pb-2 mb-2 border-b border-terminal-amber-dim/20 flex justify-between items-start">
+      <!-- Spotify card output -->
+      <div v-if="spotifyData && !spotifyData.error" class="w-full pb-2 mb-2 border-b border-terminal-amber-dim/20 flex justify-center">
+        <SpotifyCard :track="spotifyData" @close="clearSpotify" />
+      </div>
+
+      <!-- Plain text output -->
+      <div v-else-if="cmdOutput" class="text-terminal-amber-dim whitespace-pre-line w-full pb-2 mb-2 border-b border-terminal-amber-dim/20 flex justify-between items-start">
         <div>{{ cmdOutput }}</div>
         <button @click="cmdOutput = ''" class="hover:text-red-500 shrink-0 ml-4">[x]</button>
       </div>
@@ -46,14 +51,67 @@
   </div>
 </template>
 
-<script setup>
-import { ref } from 'vue'
+<script setup lang="ts">
+import { ref, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 
 const cmdInput = ref('')
 const cmdOutput = ref('')
 const router = useRouter()
 const route = useRoute()
+
+// --- Spotify state ---
+const spotifyData = ref<any>(null)
+const spotifyLoading = ref(false)
+let spotifyPollTimer: ReturnType<typeof setInterval> | null = null
+
+async function fetchSpotify () {
+  try {
+    const data = await $fetch('/api/spotify')
+    spotifyData.value = data
+    cmdOutput.value = ''
+  } catch (e) {
+    spotifyData.value = null
+    cmdOutput.value = '[SPOTIFY] Failed to fetch track data.'
+  }
+}
+
+function startSpotifyPolling () {
+  stopSpotifyPolling()
+  // Poll every 30 seconds to sync real playback state
+  spotifyPollTimer = setInterval(async () => {
+    if (!spotifyData.value) return stopSpotifyPolling()
+    const prev = spotifyData.value
+    try {
+      const fresh = await $fetch<any>('/api/spotify')
+      if (fresh && !fresh.error) {
+        // If track changed, full replace; otherwise just update progress + isPlaying
+        if (fresh.songTitle !== prev.songTitle) {
+          spotifyData.value = fresh
+        } else {
+          spotifyData.value = { ...fresh }
+        }
+        // Stop polling if nothing is playing
+        if (!fresh.isPlaying) stopSpotifyPolling()
+      }
+    } catch { /* silently ignore poll errors */ }
+  }, 30_000)
+}
+
+function stopSpotifyPolling () {
+  if (spotifyPollTimer !== null) {
+    clearInterval(spotifyPollTimer)
+    spotifyPollTimer = null
+  }
+}
+
+function clearSpotify () {
+  stopSpotifyPolling()
+  spotifyData.value = null
+  cmdOutput.value = ''
+}
+
+onUnmounted(stopSpotifyPolling)
 
 const availableDirs = ['about', 'projects', 'courses', 'contact', 'diary', 'home']
 const cmdState = ref('normal') // 'normal' | 'draft_password'
@@ -80,8 +138,25 @@ const handleCommand = () => {
 
   if (!input) return
 
+  // Dismiss any open Spotify card before handling any command
+  clearSpotify()
+
   if (input === 'help') {
-    cmdOutput.value = `Available commands:\n- cd <dir>   : Navigate to directory\n- ls         : List directories\n- clear      : Clear output\n- date       : Show current date`
+    cmdOutput.value = `Available commands:\n- cd <dir>   : Navigate to directory\n- ls         : List directories\n- clear      : Clear output\n- date       : Show current date\n- nowplaying : Show currently / last playing track`
+    return
+  }
+
+  if (input === 'nowplaying') {
+    if (spotifyLoading.value) return
+    spotifyLoading.value = true
+    cmdOutput.value = '[SPOTIFY] Fetching track data...'
+    spotifyData.value = null
+    fetchSpotify().then(() => {
+      spotifyLoading.value = false
+      if (spotifyData.value && !spotifyData.value.error) {
+        startSpotifyPolling()
+      }
+    }).catch(() => { spotifyLoading.value = false })
     return
   }
 
