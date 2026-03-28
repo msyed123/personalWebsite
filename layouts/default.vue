@@ -15,6 +15,7 @@
         <NuxtLink to="/projects" class="text-terminal-amber-dim hover:text-terminal-amber transition-colors duration-200 uppercase before:content-['//_'] before:text-terminal-blue before:mr-1">projects</NuxtLink>
         <NuxtLink to="/courses" class="text-terminal-amber-dim hover:text-terminal-amber transition-colors duration-200 uppercase before:content-['//_'] before:text-terminal-blue before:mr-1">courses</NuxtLink>
         <NuxtLink to="/contact" class="text-terminal-amber-dim hover:text-terminal-amber transition-colors duration-200 uppercase before:content-['//_'] before:text-terminal-blue before:mr-1">contact</NuxtLink>
+        <NuxtLink to="/diary" class="text-terminal-amber-dim hover:text-terminal-amber transition-colors duration-200 uppercase before:content-['//_'] before:text-terminal-blue before:mr-1">diary</NuxtLink>
       </nav>
     </header>
 
@@ -54,7 +55,7 @@ const cmdOutput = ref('')
 const router = useRouter()
 const route = useRoute()
 
-const availableDirs = ['about', 'projects', 'courses', 'contact', 'home']
+const availableDirs = ['about', 'projects', 'courses', 'contact', 'diary', 'home']
 const cmdState = ref('normal') // 'normal' | 'draft_password'
 
 const draftUnlocked = ref(false)
