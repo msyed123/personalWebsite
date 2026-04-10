@@ -36,7 +36,7 @@ export default defineNuxtConfig({
             'terminal-blue': '#00d2ff',
           },
           fontFamily: {
-            'mono': ['"Fira Code"', '"Courier New"', 'Courier', 'monospace'],
+            'mono': ['"JetBrains Mono"', '"Courier New"', 'Courier', 'monospace'],
           },
           animation: {
             'blink': 'blink 1s step-end infinite',
@@ -58,7 +58,7 @@ export default defineNuxtConfig({
       }
     }
   },
-  css: ['~/assets/css/main.css'],
+  css: ['@fontsource/jetbrains-mono', '~/assets/css/main.css'],
   app: {
     head: {
       title: 'Mamoon Syed',
