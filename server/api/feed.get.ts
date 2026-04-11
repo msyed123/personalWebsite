@@ -47,10 +47,11 @@ export default defineEventHandler(async (event) => {
   if (!feedUrls[type]) return { error: 'Unknown feed type' }
 
   try {
-    const xml = await $fetch<string>(feedUrls[type], {
-      responseType: 'text',
+    const res = await fetch(feedUrls[type], {
       headers: { 'User-Agent': 'Mozilla/5.0 (compatible; PersonalSite/1.0)' }
     })
+    if (!res.ok) throw new Error(`Fetch failed: ${res.statusText}`)
+    const xml = await res.text()
 
     const items = parseItems(xml)
 
