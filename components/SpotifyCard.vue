@@ -134,7 +134,7 @@ function formatTime (ms: number): string {
 
 <style scoped>
 .spotify-card {
-  font-family: 'Fira Code', 'Courier New', monospace;
+  font-family: inherit;
   background: #0d0d0d;
   border: 1px solid #1db954;
   border-radius: 4px;
