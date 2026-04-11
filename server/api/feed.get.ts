@@ -1,6 +1,6 @@
 import { defineEventHandler, getQuery } from 'h3'
 
-function getTagContent (xml: string, tag: string): string {
+function getTagContent(xml: string, tag: string): string {
   const esc = tag.replace(':', '\\:')
   // Try CDATA first
   const cdataRe = new RegExp(`<${esc}[^>]*>\\s*<!\\[CDATA\\[([\\s\\S]*?)\\]\\]>\\s*<\\/${esc}>`, 'i')
@@ -12,7 +12,7 @@ function getTagContent (xml: string, tag: string): string {
   return match ? match[1].trim() : ''
 }
 
-function parseItems (xml: string): string[] {
+function parseItems(xml: string): string[] {
   const items: string[] = []
   const re = /<item>([\s\S]*?)<\/item>/g
   let m: RegExpExecArray | null
@@ -20,16 +20,16 @@ function parseItems (xml: string): string[] {
   return items
 }
 
-function extractImgSrc (html: string): string {
+function extractImgSrc(html: string): string {
   const m = html.match(/<img[^>]+src="([^"]+)"/)
   return m ? m[1] : ''
 }
 
-function stripTags (html: string): string {
+function stripTags(html: string): string {
   return html.replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&nbsp;/g, ' ').replace(/&#x27;/g, "'").replace(/\s+/g, ' ').trim()
 }
 
-function extractReview (html: string): string {
+function extractReview(html: string): string {
   // Remove image paragraphs then strip tags
   const clean = html.replace(/<p>\s*<img[^>]+>\s*<\/p>/gi, '').replace(/<p>\s*<\/p>/gi, '')
   return stripTags(clean)
