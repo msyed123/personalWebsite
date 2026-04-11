@@ -27,7 +27,20 @@
     <footer class="sticky bottom-0 z-50 bg-terminal-black/95 backdrop-blur-md border-t border-terminal-amber-dim p-4 w-full flex flex-col gap-2 text-sm md:text-base opacity-95">
       <!-- Spotify card output -->
       <div v-if="spotifyData && !spotifyData.error" class="w-full pb-2 mb-2 border-b border-terminal-amber-dim/20 flex justify-center">
-        <SpotifyCard :track="spotifyData" @close="clearSpotify" />
+        <SpotifyCard :track="spotifyData" @close="clearScreen" />
+      </div>
+
+      <!-- Weather card output -->
+      <div v-else-if="weatherData" class="w-full pb-2 mb-2 border-b border-terminal-amber-dim/20 flex justify-center">
+        <WeatherCard :weatherData="weatherData" @close="clearScreen" />
+      </div>
+
+      <!-- Games output -->
+      <div v-else-if="activeGame === 'snake'" class="w-full pb-2 mb-2 border-b border-terminal-amber-dim/20 flex justify-center overflow-x-auto">
+        <TerminalSnake @close="clearScreen" />
+      </div>
+      <div v-else-if="activeGame === 'tetris'" class="w-full pb-2 mb-2 border-b border-terminal-amber-dim/20 flex justify-center overflow-x-auto">
+        <TerminalTetris @close="clearScreen" />
       </div>
 
       <!-- Plain text output -->
@@ -54,11 +67,15 @@
 <script setup lang="ts">
 import { ref, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
+import { WMO_CODES } from '~/utils/weatherCodes'
 
 const cmdInput = ref('')
 const cmdOutput = ref('')
 const router = useRouter()
 const route = useRoute()
+
+const activeGame = ref<string | null>(null)
+const weatherData = ref<any>(null)
 
 // --- Spotify state ---
 const spotifyData = ref<any>(null)
@@ -105,10 +122,12 @@ function stopSpotifyPolling () {
   }
 }
 
-function clearSpotify () {
+function clearScreen () {
   stopSpotifyPolling()
   spotifyData.value = null
   cmdOutput.value = ''
+  activeGame.value = null
+  weatherData.value = null
 }
 
 onUnmounted(stopSpotifyPolling)
@@ -138,11 +157,97 @@ const handleCommand = () => {
 
   if (!input) return
 
-  // Dismiss any open Spotify card before handling any command
-  clearSpotify()
+  // Dismiss any open cards before handling any command
+  clearScreen()
+
+  if (input.startsWith('man ')) {
+    const cmd = input.split(' ')[1]
+    const manPages: Record<string, string> = {
+      pwd: 'NAME\n    pwd - print working directory\nSYNOPSIS\n    pwd\nDESCRIPTION\n    Outputs the absolute path of the current website route you are viewing.',
+      ls: 'NAME\n    ls - list directory contents\nSYNOPSIS\n    ls\nDESCRIPTION\n    Displays a list of available directories (pages) on this website you can seamlessly navigate to using cd.',
+      cd: 'NAME\n    cd - change directory\nSYNOPSIS\n    cd [directory]\nDESCRIPTION\n    Changes the current route. To go to the root directory, simply use `cd home` or `cd ..` or `cd /`.',
+      clear: 'NAME\n    clear - clear the terminal screen\nSYNOPSIS\n    clear\nDESCRIPTION\n    Clears all previous command outputs and active cards (Spotify, Weather, Games).',
+      date: 'NAME\n    date - print current system date\nSYNOPSIS\n    date\nDESCRIPTION\n    Fetches the actual JS date object representation of the current time locally.',
+      nowplaying: 'NAME\n    nowplaying - spotify listener status\nSYNOPSIS\n    nowplaying\nDESCRIPTION\n    Hooks into the server to fetch the exact song Mamoon is currently listening to on Spotify, along with an animated progress bar.',
+      chmod: 'NAME\n    chmod - change file modes/themes\nSYNOPSIS\n    chmod\nDESCRIPTION\n    A custom toggle that switches the environment from a dark CRT phosphor theme to a light paper aesthetic.',
+      weather: 'NAME\n    weather - get real-time forecast\nSYNOPSIS\n    weather [location]\nDESCRIPTION\n    Contacts Open-Meteo services to pinpoint the exact location and fetch atmospheric temperature readings with ASCII display.',
+      snake: 'NAME\n    snake - launch snake simulation\nSYNOPSIS\n    snake\nDESCRIPTION\n    A fully-playable clone of the classic cell-arcade game right inside the footer, optimized for keyboard and standard DOS block-graphics.',
+      tetris: 'NAME\n    tetris - launch tetris simulation\nSYNOPSIS\n    tetris\nDESCRIPTION\n    A block-dropping puzzle game clone leveraging rich ANSI color codes. Highly addictive.'
+    }
+    
+    if (manPages[cmd]) {
+      cmdOutput.value = manPages[cmd]
+    } else {
+      cmdOutput.value = `No manual entry for ${cmd}`
+    }
+    return
+  }
 
   if (input === 'help') {
-    cmdOutput.value = `Available commands:\n- cd <dir>   : Navigate to directory\n- ls         : List directories\n- clear      : Clear output\n- date       : Show current date\n- nowplaying : Show currently / last playing track`
+    cmdOutput.value = `Available commands:\n- cd <dir>   : Navigate to directory\n- pwd        : Print working directory\n- ls         : List directories\n- clear      : Clear output\n- date       : Show current date\n- nowplaying : Show currently / last playing track\n- chmod      : Toggle dark/light mode\n- weather    : Show weather (e.g. weather <city>)\n- snake      : Play Snake (desktop only)\n- tetris     : Play Tetris (desktop only)\n- man <cmd>  : Read manual page for command`
+    return
+  }
+
+  if (input === 'pwd') {
+    cmdOutput.value = route.path === '/' ? '/home/user' : `/home/user${route.path}`
+    return
+  }
+
+  if (input === 'chmod') {
+    if (document.body.classList.contains('light-theme')) {
+      document.body.classList.remove('light-theme')
+      cmdOutput.value = 'Switched to dark mode (755)'
+    } else {
+      document.body.classList.add('light-theme')
+      cmdOutput.value = 'Switched to light mode (777)'
+    }
+    return
+  }
+  
+  if (input.startsWith('weather')) {
+    const loc = input.split(' ').slice(1).join(' ') || 'Gainesville'
+    cmdOutput.value = `Fetching weather for ${loc}...`
+    $fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(loc)}&count=1&language=en&format=json`)
+      .then((geo: any) => {
+        if (!geo.results || geo.results.length === 0) {
+          cmdOutput.value = `Location not found: ${loc}`
+          return
+        }
+        const { latitude, longitude, name, admin1, country_code } = geo.results[0]
+        return $fetch(`https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,weather_code&temperature_unit=fahrenheit&wind_speed_unit=mph`).then((weather: any) => {
+          const temp = Math.round(weather.current.temperature_2m)
+          const code = Number(weather.current.weather_code)
+          const p = WMO_CODES[code as keyof typeof WMO_CODES] || 'Unknown'
+          weatherData.value = {
+            temp,
+            condition: p,
+            location: `${name}, ${admin1 || country_code || ''}`.replace(/,\s*$/, ''),
+            code
+          }
+          cmdOutput.value = ''
+        })
+      })
+      .catch((e: any) => {
+        cmdOutput.value = `Error fetching weather: ${e.message}`
+      })
+    return
+  }
+
+  if (input === 'snake') {
+    if (window.innerWidth < 768) {
+      cmdOutput.value = `Snake requires a desktop display.`
+    } else {
+      activeGame.value = 'snake'
+    }
+    return
+  }
+
+  if (input === 'tetris') {
+    if (window.innerWidth < 768) {
+      cmdOutput.value = `Tetris requires a desktop display.`
+    } else {
+      activeGame.value = 'tetris'
+    }
     return
   }
 

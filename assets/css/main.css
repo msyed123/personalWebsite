@@ -64,3 +64,37 @@
 ::-webkit-scrollbar-thumb:hover {
   @apply bg-terminal-amber;
 }
+
+/* Light theme overrides */
+body.light-theme {
+  @apply bg-[#f4f4f4] text-[#333];
+}
+
+body.light-theme .text-terminal-amber {
+  color: #4a4a4a;
+}
+
+body.light-theme .text-terminal-amber-dim {
+  color: #6a6a6a;
+}
+
+body.light-theme .bg-terminal-black {
+  background-color: #f4f4f4;
+}
+
+body.light-theme .bg-terminal-black\/95 {
+  background-color: rgba(244, 244, 244, 0.95);
+}
+
+body.light-theme .border-terminal-amber-dim {
+  border-color: #ccc;
+}
+
+body.light-theme .border-terminal-amber-dim\/20 {
+  border-color: rgba(204, 204, 204, 0.5);
+}
+
+body.light-theme .text-terminal-blue {
+  color: #005bb5;
+}
+
