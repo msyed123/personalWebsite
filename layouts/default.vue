@@ -222,7 +222,9 @@ const handleCommand = () => {
             temp,
             condition: p,
             location: `${name}, ${admin1 || country_code || ''}`.replace(/,\s*$/, ''),
-            code
+            code,
+            lat: latitude,
+            lon: longitude
           }
           cmdOutput.value = ''
         })
