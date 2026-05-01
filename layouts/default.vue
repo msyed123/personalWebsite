@@ -218,6 +218,7 @@ const handleCommand = () => {
           const temp = Math.round(weather.current.temperature_2m)
           const code = Number(weather.current.weather_code)
           const p = WMO_CODES[code as keyof typeof WMO_CODES] || 'Unknown'
+
           weatherData.value = {
             temp,
             condition: p,

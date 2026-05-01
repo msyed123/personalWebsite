@@ -28,10 +28,14 @@
       class="w-full h-48 sm:h-64 border border-terminal-amber-dim/50 bg-terminal-black overflow-hidden map-crt-effect relative"
     >
       <!-- Controls overlays -->
-      <div class="absolute bottom-2 left-2 z-[999] flex gap-3 map-control-bg px-3 py-1.5 border border-terminal-amber-dim/50 text-xs text-terminal-amber font-bold">
-        <button @click="togglePlay" class="hover:text-terminal-blue transition-colors focus:outline-none w-16 text-left">{{ isPlaying ? '|| PAUSE' : '► PLAY' }}</button>
-        <button @click="prevFrame" class="hover:text-terminal-blue transition-colors focus:outline-none">&lt;</button>
-        <button @click="nextFrame" class="hover:text-terminal-blue transition-colors focus:outline-none">&gt;</button>
+      <div class="absolute bottom-2 left-2 z-[999] flex map-control-bg border border-terminal-amber-dim/50 text-xs text-terminal-amber font-bold">
+        <button @click="togglePlay" class="hover:text-terminal-blue transition-colors focus:outline-none w-16 text-left px-3 py-1.5">{{ isPlaying ? '|| PAUSE' : '► PLAY' }}</button>
+        <button @click="prevFrame" class="hover:text-terminal-blue transition-colors focus:outline-none px-3 py-1.5">&lt;</button>
+        <button @click="nextFrame" class="hover:text-terminal-blue transition-colors focus:outline-none px-3 py-1.5">&gt;</button>
+        <div class="border-l border-terminal-amber-dim/50 flex">
+          <button @click="zoomIn" class="hover:text-terminal-blue transition-colors focus:outline-none px-3 py-1.5 border-r border-terminal-amber-dim/50">+</button>
+          <button @click="zoomOut" class="hover:text-terminal-blue transition-colors focus:outline-none px-3 py-1.5">-</button>
+        </div>
       </div>
       <div v-if="timestamps.length > 0" class="absolute bottom-2 right-2 z-[999] map-control-bg px-2 py-1.5 border border-terminal-amber-dim/50 text-xs text-terminal-amber font-bold">
         {{ formatTime(timestamps[currentFrame]) }}
@@ -39,7 +43,7 @@
     </div>
 
     <div class="text-[10px] sm:text-xs text-terminal-amber-dim/50 flex justify-between tracking-widest uppercase mt-[-4px]">
-      <span>> Source: Rainviewer</span>
+      <span>> Source: Rainviewer / Open-Meteo</span>
       <span>SYS.OP.OK</span>
     </div>
   </div>
@@ -69,47 +73,12 @@ const artColor = computed(() => {
 
 const asciiArt = computed(() => {
   const code = props.weatherData.code;
-  if (code === 0 || code === 1) { // Clear / Mainly clear
-    return `
-  \\  /   
-_ /"".\\ _
-  \\__(/  
-  /  \\   `;
-  }
-  if (code === 2 || code === 3) { // Cloudy
-    return `
-  .--.   
- .-(  ). 
-(___.__)_)
-         `;
-  }
-  if (code >= 51 && code <= 67 || code >= 80 && code <= 82) { // Rain
-    return `
-  .--.   
- .-(  ). 
-(___.__)_)
- ‘ ‘ ‘ ‘ `;
-  }
-  if (code >= 71 && code <= 86) { // Snow
-    return `
-  .--.   
- .-(  ). 
-(___.__)_)
- * * * * `;
-  }
-  if (code >= 95) { // Thunderstorm
-    return `
-  .--.   
- .-(  ). 
-(___.__)_)
-  ⚡ ⚡   `;
-  }
-  // Default Fog / Other
-  return `
- _-_ _-_ 
-  _-_ _-_
- _-_ _-_ 
-         `;
+  if (code === 0 || code === 1) return `\n  \\  /   \n_ /"".\\ _\n  \\__(/  \n  /  \\   `;
+  if (code === 2 || code === 3) return `\n  .--.   \n .-(  ). \n(___.__)_)\n         `;
+  if (code >= 51 && code <= 67 || code >= 80 && code <= 82) return `\n  .--.   \n .-(  ). \n(___.__)_)\n ‘ ‘ ‘ ‘ `;
+  if (code >= 71 && code <= 86) return `\n  .--.   \n .-(  ). \n(___.__)_)\n * * * * `;
+  if (code >= 95) return `\n  .--.   \n .-(  ). \n(___.__)_)\n  ⚡ ⚡   `;
+  return `\n _-_ _-_ \n  _-_ -_ \n _-_ _-_ \n         `;
 });
 
 const mapContainer = ref(null)
@@ -151,7 +120,7 @@ function showFrame(index) {
   // Hide all
   radarLayers.value.forEach(layer => layer.setOpacity(0));
   // Show target
-  radarLayers.value[index].setOpacity(0.85);
+  radarLayers.value[index].setOpacity(1); // Grid layer opacity native works weirdly sometimes, 1 is best
   currentFrame.value = index;
 }
 
@@ -167,6 +136,14 @@ function prevFrame() {
   showFrame(prev);
 }
 
+function zoomIn() {
+  if (mapInstance.value) mapInstance.value.zoomIn();
+}
+
+function zoomOut() {
+  if (mapInstance.value) mapInstance.value.zoomOut();
+}
+
 onMounted(async () => {
   // Dynamically import Leaflet so it doesn't break Nuxt 3 SSR
   const L = (await import('leaflet')).default;
@@ -177,7 +154,7 @@ onMounted(async () => {
   const lat = props.weatherData.lat || 29.6516;
   const lon = props.weatherData.lon || -82.3248;
 
-  // Disable all zooming/panning to align with simple aesthetic and free tier restrictions
+  // Set default zoom dramatically closer to 10
   mapInstance.value = L.map(mapContainer.value, {
     zoomControl: false,
     attributionControl: false,
@@ -186,13 +163,150 @@ onMounted(async () => {
     doubleClickZoom: false,
     scrollWheelZoom: false,
     boxZoom: false,
-    keyboard: false
-  }).setView([lat, lon], 7); // Locked zooming to 7
+    keyboard: false,
+    minZoom: 4,
+    maxZoom: 13
+  }).setView([lat, lon], 10); 
 
   // CartoDB Dark Matter basemap looks pristine for a CLI environment
   L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
     maxZoom: 19
   }).addTo(mapInstance.value);
+
+  // Define the custom ASCII Canvas GridLayer
+  const AsciiRadarLayer = L.GridLayer.extend({
+    createTile: function(coords, done) {
+      var tile = document.createElement('canvas');
+      var tileSize = this.getTileSize();
+      tile.width = tileSize.x;
+      tile.height = tileSize.y;
+      var ctx = tile.getContext('2d', { willReadFrequently: true });
+      
+      const rainPath = this.options.rainPath;
+      if (!rainPath) {
+        done(null, tile);
+        return tile;
+      }
+
+      // Automatically wrap longitudinal bounds so panning behaves gracefully
+      var max = Math.pow(2, coords.z);
+      var rx = coords.x % max;
+      if (rx < 0) rx += max;
+      var ry = coords.y;
+      // Do not try to request tiles outside map bounds
+      if (ry < 0 || ry >= max) {
+         done(null, tile);
+         return tile;
+      }
+
+      // Rainviewer's Free Tier hard-blocks zoom levels > 7 and returns an "Out of coverage" image artifact.
+      // We mathematically bypass this limitation by artificially capping the fetch to Z=7,
+      // and later extracting/upscaling the specific sub-region mapped to the user's coordinate.
+      let fetchZ = coords.z;
+      let fetchX = rx;
+      let fetchY = ry;
+      
+      let zDiff = 0;
+      if (fetchZ > 7) {
+        zDiff = fetchZ - 7;
+        fetchZ = 7;
+        fetchX = Math.floor(rx / Math.pow(2, zDiff));
+        fetchY = Math.floor(ry / Math.pow(2, zDiff));
+      }
+
+      const url = `https://tilecache.rainviewer.com${rainPath}/256/${fetchZ}/${fetchX}/${fetchY}/6/1_1.png`;
+
+      // By explicitly using fetch, we can catch Rainviewer's 404 HTTP empty tile 
+      // BEFORE it gets rendered natively into the canvas as a raw "404 Not Found" image
+      fetch(url)
+        .then(res => {
+          if (!res.ok) throw new Error('Clear sky or empty radar tile');
+          return res.blob();
+        })
+        .then(blob => {
+          var img = new Image();
+          var objUrl = URL.createObjectURL(blob);
+          img.onload = () => {
+            var off = document.createElement('canvas');
+            off.width = tileSize.x; 
+            off.height = tileSize.y;
+            var oCtx = off.getContext('2d', { willReadFrequently: true });
+            
+            // If we fetched a Z=7 macro-tile to bypass the API limit, we must slice out the correct 
+            // sub-region corresponding to the native zoomed-in tile before rendering it.
+            if (zDiff > 0) {
+              const scale = Math.pow(2, zDiff);
+              const subSize = 256 / scale;
+              const sx = (rx % scale) * subSize;
+              const sy = (ry % scale) * subSize;
+              
+              // Disable interpolation to ensure upscaled radar clusters remain crisp pixel blocks
+              oCtx.imageSmoothingEnabled = false;
+              oCtx.drawImage(img, sx, sy, subSize, subSize, 0, 0, 256, 256);
+            } else {
+              oCtx.drawImage(img, 0, 0);
+            }
+            
+            var imgData = oCtx.getImageData(0,0,tileSize.x,tileSize.y).data;
+            
+            var stepX = 3; 
+            var stepY = 3; 
+            ctx.font = 'bold 6px monospace';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            
+            for(var y=0; y<tileSize.y; y+=stepY) {
+              for(var x=0; x<tileSize.x; x+=stepX) {
+                var idx = ((y * tileSize.x) + x) * 4;
+                var r = imgData[idx];
+                var g = imgData[idx+1];
+                var b = imgData[idx+2];
+                var a = imgData[idx+3];
+                
+                // RainViewer injects a muddy pale-yellow watermark text onto its free tier tiles.
+                // It ALSO injects a perfectly grayscale '404' text on out-of-bounds tiles.
+                // Genuine precipitation in Color Scheme 6 uses vibrant blues, greens, yellows, and reds.
+                var maxC = Math.max(r, g, b);
+                var minC = Math.min(r, g, b);
+                var sat = maxC === 0 ? 0 : (maxC - minC) / maxC;
+
+                var isGrayscale = sat < 0.1;
+                var isMuddyBrown = (r > g && g > b && r < 230 && b > 80 && Math.abs(r - g) < 30);
+
+                if (a > 15 && !isGrayscale && !isMuddyBrown) {
+                  var char = '░'; 
+                  if (r > 190 && g < 150) char = '█'; // red/magenta (Heavy Rain)
+                  else if (g > 150) char = '▓'; // green/yellow (Moderate Rain)
+                  else if (b > 150) char = '▒'; // blue/cyan (Light Rain)
+
+                  var fillR = Math.min(255, r * 1.4);
+                  var fillG = Math.min(255, g * 1.4);
+                  var fillB = Math.min(255, b * 1.4);
+                  
+                  ctx.fillStyle = `rgba(${fillR}, ${fillG}, ${fillB}, 1)`;
+                  // Preserve map density sizes
+                  ctx.font = 'bold 6px monospace';
+                  ctx.fillText(char, x + stepX/2, y + stepY/2);
+                }
+              }
+            }
+            URL.revokeObjectURL(objUrl);
+            done(null, tile);
+          };
+          img.onerror = () => {
+            URL.revokeObjectURL(objUrl);
+            done(null, tile);
+          }
+          img.src = objUrl;
+        })
+        .catch(() => {
+          // Empty sky / 404 tile means we shouldn't draw rain
+          done(null, tile);
+        });
+
+      return tile;
+    }
+  });
 
   // Fetch rainviewer map data config
   try {
@@ -205,12 +319,11 @@ onMounted(async () => {
       timestamps.value = past.map(p => p.time);
       
       const layers = past.map((p, idx) => {
-        // Color scheme 6 (MAC format) looks great and vibrant against dark backgrounds
-        const layer = L.tileLayer(`https://tilecache.rainviewer.com${p.path}/256/{z}/{x}/{y}/6/1_1.png`, {
+        const layer = new AsciiRadarLayer({
           tileSize: 256,
           opacity: 0,
-          transparent: true,
-          zIndex: 10 + idx
+          zIndex: 10 + idx,
+          rainPath: p.path
         });
         layer.addTo(mapInstance.value);
         return layer;
