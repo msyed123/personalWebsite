@@ -41,8 +41,7 @@ const snake = ref([{x: 5, y: 5}]);
 const food = ref({x: 10, y: 5});
 let dx = 1;
 let dy = 0;
-let nextDx = 1;
-let nextDy = 0;
+let inputQueue = [];
 
 let interval = null;
 
@@ -57,8 +56,17 @@ const spawnFood = () => {
 
 const tick = () => {
   if (gameOver.value) return;
-  dx = nextDx;
-  dy = nextDy;
+  
+  while (inputQueue.length > 0) {
+    const nextMove = inputQueue.shift();
+    if (nextMove.dx === -dx && nextMove.dx !== 0) continue;
+    if (nextMove.dy === -dy && nextMove.dy !== 0) continue;
+    if (nextMove.dx === dx && nextMove.dy === dy) continue;
+
+    dx = nextMove.dx;
+    dy = nextMove.dy;
+    break;
+  }
   
   const head = snake.value[0];
   const newHead = { x: head.x + dx, y: head.y + dy };
@@ -89,16 +97,16 @@ const onKeyDown = (e) => {
   }
   if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
     e.preventDefault();
+    if (e.key === 'ArrowUp') inputQueue.push({ dx: 0, dy: -1 });
+    else if (e.key === 'ArrowDown') inputQueue.push({ dx: 0, dy: 1 });
+    else if (e.key === 'ArrowLeft') inputQueue.push({ dx: -1, dy: 0 });
+    else if (e.key === 'ArrowRight') inputQueue.push({ dx: 1, dy: 0 });
   }
-  if (e.key === 'ArrowUp' && dy !== 1) { nextDx = 0; nextDy = -1; }
-  if (e.key === 'ArrowDown' && dy !== -1) { nextDx = 0; nextDy = 1; }
-  if (e.key === 'ArrowLeft' && dx !== 1) { nextDx = -1; nextDy = 0; }
-  if (e.key === 'ArrowRight' && dx !== -1) { nextDx = 1; nextDy = 0; }
 };
 
 const reset = () => {
   snake.value = [{x: 5, y: 5}];
-  dx = 1; dy = 0; nextDx = 1; nextDy = 0;
+  dx = 1; dy = 0; inputQueue = [];
   score.value = 0;
   gameOver.value = false;
   spawnFood();
