@@ -1,0 +1,139 @@
+{
+  "seed": 619,
+  "ensemble_size": 512,
+  "quadrature_nodes": 256,
+  "covariance_tolerance": 0.01,
+  "native_probe_tolerance": 0.01,
+  "acceleration_bandlimit_hz": 0.02,
+  "bias_sigma_m_s2": 1e-10,
+  "sensor": {
+    "model": "acceleration_spectrum",
+    "spectrum_path": "selected_acceleration_psd.csv",
+    "spectrum_origin": "synthetic",
+    "unit": "m/s^2",
+    "axis_asd_scales": [
+      1,
+      1,
+      1,
+      1,
+      1,
+      1
+    ],
+    "correlation": [
+      [
+        1,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        1,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        1,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        1,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0,
+        1,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0,
+        0,
+        1
+      ]
+    ]
+  },
+  "lri": {
+    "scenario": "abich_requirement",
+    "floor_hz": 0.0001
+  },
+  "native": {
+    "start_mjd": 52395,
+    "sampling_s": 20,
+    "duration_s": 7200,
+    "force_degree": 40,
+    "recovery_degree": 40,
+    "position_sigma_m": 0.02,
+    "range_rate_sigma_m_s": 1e-07,
+    "normal_gravity_m_s2": 9.81
+  },
+  "arc_offsets_s": [
+    0,
+    10800,
+    21600,
+    32400,
+    43200,
+    54000,
+    64800,
+    75600,
+    86400,
+    97200,
+    108000,
+    118800,
+    129600,
+    140400,
+    151200,
+    162000,
+    172800,
+    183600,
+    194400,
+    205200,
+    216000,
+    226800,
+    237600,
+    248400
+  ],
+  "pairs": [
+    {
+      "altitude_m": 500000,
+      "inclination_deg": 89,
+      "raan_deg": 0,
+      "mean_anomaly_deg": 0,
+      "separation_m": 200000
+    },
+    {
+      "altitude_m": 500000,
+      "inclination_deg": 70,
+      "raan_deg": 90,
+      "mean_anomaly_deg": 45,
+      "separation_m": 200000
+    }
+  ],
+  "truth_offsets": {
+    "c_2_0": 1e-09,
+    "c_2_1": -2e-10,
+    "s_2_2": 3e-10,
+    "c_40_20": 1e-11,
+    "s_40_40": -1e-11
+  },
+  "fast_probe_tolerance": 0.02,
+  "integration_sampling_s": 5,
+  "native_probe_peak_m_s2": 1e-08
+}

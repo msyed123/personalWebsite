@@ -1,0 +1,135 @@
+{
+  "constellation": {
+    "candidate_id": "cic_002",
+    "start_mjd": 52395,
+    "sampling_s": 5,
+    "arc_duration_s": 7200,
+    "arc_start_offsets_s": [
+      0,
+      10800,
+      21600,
+      32400,
+      43200,
+      54000,
+      64800,
+      75600,
+      86400,
+      97200,
+      108000,
+      118800,
+      129600,
+      140400,
+      151200,
+      162000,
+      172800,
+      183600,
+      194400,
+      205200,
+      216000,
+      226800,
+      237600,
+      248400
+    ],
+    "force_degree": 40,
+    "recovery_degree": 40,
+    "mission_passband_hz": 0.02,
+    "position_sigma_m": 0.02,
+    "range_rate_sigma_m_s": 1e-07,
+    "normal_gravity_m_s2": 9.81,
+    "bias_sigma_m_s2": 1e-10,
+    "seed": 301,
+    "pairs": [
+      {
+        "altitude_m": 490000,
+        "inclination_deg": 89,
+        "raan_deg": 0,
+        "mean_anomaly_deg": 0,
+        "separation_m": 200000
+      },
+      {
+        "altitude_m": 490000,
+        "inclination_deg": 70,
+        "raan_deg": 90,
+        "mean_anomaly_deg": 45,
+        "separation_m": 200000
+      },
+      {
+        "altitude_m": 490000,
+        "inclination_deg": 89,
+        "raan_deg": 180,
+        "mean_anomaly_deg": 90,
+        "separation_m": 200000
+      },
+      {
+        "altitude_m": 490000,
+        "inclination_deg": 70,
+        "raan_deg": 270,
+        "mean_anomaly_deg": 135,
+        "separation_m": 200000
+      }
+    ],
+    "components": {
+      "A": {
+        "type": "gfc_difference",
+        "path": "model_atmosphere_2002-05-01.gfc",
+        "reference_path": "model_atmosphere_2002-04-01.gfc",
+        "epoch": "2002-05-01",
+        "reference_epoch": "2002-04-01",
+        "source": "Bundled ITSG-Grace2018 daily background; atmosphere",
+        "label": "Atmosphere"
+      },
+      "O": {
+        "type": "gfc_difference",
+        "path": "model_ocean_2002-05-01.gfc",
+        "reference_path": "model_ocean_2002-04-01.gfc",
+        "epoch": "2002-05-01",
+        "reference_epoch": "2002-04-01",
+        "source": "Bundled ITSG-Grace2018 daily background; ocean",
+        "label": "Ocean"
+      },
+      "H": {
+        "type": "gfc_difference",
+        "path": "model_hydrology_2002-05-01.gfc",
+        "reference_path": "model_hydrology_2002-04-01.gfc",
+        "epoch": "2002-05-01",
+        "reference_epoch": "2002-04-01",
+        "source": "Bundled ITSG-Grace2018 daily background; hydrology",
+        "label": "Hydrology"
+      },
+      "S": {
+        "type": "gfc_difference",
+        "path": "model_glacialIsostaticAdjustment_2002-05-01.gfc",
+        "reference_path": "model_glacialIsostaticAdjustment_2002-04-01.gfc",
+        "epoch": "2002-05-01",
+        "reference_epoch": "2002-04-01",
+        "source": "Bundled ITSG-Grace2018 daily background; glacialIsostaticAdjustment",
+        "label": "Solid Earth (GIA only)"
+      }
+    },
+    "unavailable_components": {
+      "I": "No independent ice model found in installed data",
+      "S_other": "Only GIA available; other solid-Earth processes not included"
+    },
+    "component_workers": 2,
+    "show_source_bandwidth": false,
+    "recovery_components": [
+      "AOHS"
+    ]
+  },
+  "selected_filter_replay": {
+    "window_arc_counts": [
+      24
+    ],
+    "include_sensor_noise": true,
+    "seed": 301,
+    "sgrs_noise": {
+      "model": "acceleration_spectrum",
+      "spectrum_path": "temporal_acceleration_psd.csv",
+      "spectrum_origin": "synthetic",
+      "unit": "m/s^2",
+      "stage": "mission_delivered",
+      "readout_displacement_asd_m_sqrt_hz": 0.0,
+      "low_frequency_floor_hz": 0.0001
+    }
+  }
+}

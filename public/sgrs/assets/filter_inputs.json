@@ -1,0 +1,74 @@
+{
+  "input": {
+    "type": "model",
+    "stage": "baseband",
+    "unit": "m/s^2",
+    "sample_rate_hz": 1000000,
+    "model": {
+      "name": "davila_sgrs",
+      "mode": "non_drag_compensated",
+      "low_frequency_floor_hz": 0.0001,
+      "high_frequency_hold_hz": 0.1,
+      "readout_displacement_asd": 1e-09
+    }
+  },
+  "output_rate_hz": 10,
+  "passband_hz": 1,
+  "science_band_hz": [
+    0.0001,
+    0.1
+  ],
+  "input_bits": 24,
+  "input_lsb": 1e-12,
+  "input_peak_fraction": 0.75,
+  "clock_rate_hz": 100000000,
+  "design_margin": 0.1,
+  "requirements": {
+    "max_noise_rms": 1.2e-10,
+    "max_quantization_error": 5e-12,
+    "max_passband_deviation_db": 0.7,
+    "max_alias_fraction": 0.001,
+    "max_delay_s": 0.25,
+    "max_state_bits": 5000,
+    "max_estimated_luts": 100000,
+    "max_multipliers": 128,
+    "min_fir_stopband_attenuation_db": 45
+  },
+  "resource_model": {
+    "target": "portable VHDL; RTG4 evaluation profile",
+    "lut_per_adder_bit": 2,
+    "lut_per_format_bit": 1,
+    "lut_per_control_bit": 2,
+    "lut_per_multiplier_bit_product": 1
+  },
+  "grid_points": 1025,
+  "grid_relative_tolerance": 0.02,
+  "seed": 909,
+  "data_bits": 28,
+  "architecture": {
+    "max_cic_order": 4,
+    "max_fir_decimation": 10,
+    "max_fir_taps": 31,
+    "coefficient_bits": [
+      16,
+      20,
+      24
+    ]
+  },
+  "max_synthesis_attempts": 200,
+  "selection": {
+    "policy": "weighted_cost",
+    "weights": {
+      "delay": 0.5,
+      "luts": 0.2,
+      "storage": 0.2,
+      "multipliers": 0.1
+    },
+    "reference_scales": {
+      "delay": 0.25,
+      "luts": 50000,
+      "storage": 5000,
+      "multipliers": 64
+    }
+  }
+}
