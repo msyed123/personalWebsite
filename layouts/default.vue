@@ -206,7 +206,7 @@ const handleCommand = () => {
   }
   
   if (input.startsWith('weather')) {
-    const loc = input.split(' ').slice(1).join(' ') || 'Gainesville'
+    const loc = input.split(' ').slice(1).join(' ') || 'Seattle'
     cmdOutput.value = `Fetching weather for ${loc}...`
     $fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(loc)}&count=1&language=en&format=json`)
       .then((geo: any) => {
