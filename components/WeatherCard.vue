@@ -72,11 +72,11 @@
 
     <!-- A proper temporal navigator: visible time, accessible playhead, and
          controls outside the map so precipitation never hides the timeline. -->
-    <div v-if="!trafficOnly" class="radar-timeline border border-terminal-amber-dim/50 bg-terminal-black px-3 py-3 flex flex-col gap-2" role="group" aria-label="Radar timeline">
+    <div v-if="!trafficOnly" class="radar-timeline border border-terminal-amber-dim/50 bg-terminal-black px-3 py-3 flex flex-col gap-2" role="group" aria-label="Radar timeline" :aria-busy="radarLoading">
       <div class="flex flex-wrap justify-between items-center gap-x-4 gap-y-1">
         <div class="flex flex-col gap-0.5">
           <span class="text-[11px] tracking-[0.17em] text-terminal-amber font-bold">RADAR TIMELINE</span>
-          <span class="text-[10px] text-terminal-amber-dim">{{ isPlaying ? '◉ PLAYING' : '◯ PAUSED' }} · {{ timestamps.length ? 'PAST OBSERVATIONS' : 'AWAITING RADAR' }}</span>
+          <span class="text-[10px] text-terminal-amber-dim">{{ radarLoading ? '◌ LOADING FRAME' : (isPlaying ? '◉ PLAYING' : '◯ PAUSED') }} · {{ timestamps.length ? 'PAST OBSERVATIONS' : 'AWAITING RADAR' }}</span>
         </div>
         <div class="text-right flex flex-col gap-0.5" aria-live="off">
           <span class="text-[10px] tracking-wider text-terminal-amber-dim">FRAME TIME</span>
@@ -199,6 +199,7 @@ let radarController = null
 const timestamps = ref([])
 const currentFrame = ref(0)
 const isPlaying = ref(false)
+const radarLoading = ref(false)
 const timelineProgress = computed(() =>
   timestamps.value.length > 1 ? currentFrame.value * 100 / (timestamps.value.length - 1) : 0
 )
@@ -251,15 +252,22 @@ function togglePlay() {
   else startAnimation()
 }
 
-function showFrame(index) {
+async function showFrame(index) {
   if (!radarController || !Number.isInteger(index) || !timestamps.value[index]) {
-    return Promise.resolve(false)
+    return false
   }
-  // The clock and playhead update together; the double-buffered radar then
-  // fades between precipitation amounts, including last-frame -> first-frame.
+  // The playhead shows the requested time immediately. A brief buffering
+  // indicator explains why the prior frame stays visible until tiles arrive.
   currentFrame.value = index
-  return radarController.showFrame(index,
-    trafficVisible.value ? RADAR_OPACITY_WITH_TRAFFIC : RADAR_OPACITY_SOLO)
+  radarLoading.value = true
+  try {
+    return await radarController.showFrame(index,
+      trafficVisible.value ? RADAR_OPACITY_WITH_TRAFFIC : RADAR_OPACITY_SOLO)
+  } finally {
+    // Rapid scrubs can supersede this request; only the most recent selection
+    // may clear its pending/loading indicator.
+    if (currentFrame.value === index) radarLoading.value = false
+  }
 }
 
 function nextFrame() {
@@ -432,6 +440,7 @@ onMounted(async () => {
 onUnmounted(() => {
   weatherMapDisposed = true;
   stopAnimation();
+  radarLoading.value = false;
   if (trafficController) trafficController.destroy();
   trafficController = null;
   radarController?.destroy();
