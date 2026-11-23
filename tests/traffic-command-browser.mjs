@@ -98,6 +98,25 @@ try{
      status:200,contentType:'application/json',body:JSON.stringify({type:'FeatureCollection',features:[{type:'Feature',geometry:{type:'Point',coordinates:[-122.33,47.614]},properties:{kind:'sensor',source:'WSDOT',condition:'flowing',observedAt:'2026-11-23T08:44:00Z'}}]})
    }))
    await page.goto(`http://127.0.0.1:${port}`,{waitUntil:'domcontentloaded',timeout:60000})
+   // The page-wide CRT overlay may remain as a STATIC texture. Its old
+   // 14-second ::before sweep drew at the screen edges beside the opaque
+   // weather footer, creating the illusion of a scrolling map.
+   const scanline=await page.locator('.scanlines').evaluate(el=>{
+     const overlay=getComputedStyle(el)
+     const beam=getComputedStyle(el,'::before')
+     return {
+       texture:overlay.backgroundImage,
+       animation:overlay.animationName,
+       beamContent:beam.content,
+       beamAnimation:beam.animationName
+     }
+   })
+   if(!scanline.texture.includes('linear-gradient') ||
+      scanline.animation!=='none' ||
+      scanline.beamContent!=='none' ||
+      scanline.beamAnimation!=='none') {
+     throw Error('Viewport-wide animated CRT beam is still present: '+JSON.stringify(scanline))
+   }
    const input=page.locator('footer input').last()
    await input.fill('traffic Seattle')
    await input.press('Enter')
