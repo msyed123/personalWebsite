@@ -65,3 +65,5 @@ for(const [name,url] of [['forecast',forecastURL],['geocoding',geoURL]]){
  }
 }
 console.log('PROBE_WEATHER_TRAFFIC '+JSON.stringify({host,report}))
+
+// Post-merge PR #36: verify public HTTP status without credentials.
