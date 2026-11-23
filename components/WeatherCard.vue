@@ -1,7 +1,7 @@
 <template>
   <div data-terminal-map-card class="font-mono text-sm border border-terminal-amber/30 p-3 sm:p-4 w-full min-w-0 bg-terminal-black shadow-lg relative flex flex-col gap-4 group">
     <button @click="$emit('close')" class="absolute top-2 right-3 z-[999] text-terminal-amber bg-terminal-black/80 px-2 py-0 border border-terminal-amber-dim hover:text-red-500 hover:border-red-500 transition-colors cursor-pointer">[x]</button>
-    
+
     <!-- Weather Data Top Bar -->
     <div v-if="!trafficOnly" class="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-2 items-end w-full pt-1 pr-8">
       <div class="flex items-center gap-3 min-w-0">
@@ -10,7 +10,7 @@
 {{ asciiArt }}
         </div>
         <div class="min-w-0 flex-1 pt-2">
-          <div class="text-xs uppercase tracking-widest text-terminal-amber-dim mb-1" :class="{'animate-pulse': isPlaying}">LIVE RADAR SIGNAL</div>
+          <div class="text-xs uppercase tracking-widest text-terminal-amber-dim mb-1" :class="{'animate-pulse': isPlaying}">{{ weatherLayer === 'radar' ? 'LIVE RADAR SIGNAL' : 'MODEL PRECIPITATION FORECAST' }}</div>
           <div class="text-lg sm:text-xl font-bold text-terminal-blue leading-tight break-words">{{ weatherData.location }}</div>
         </div>
       </div>
@@ -34,88 +34,105 @@
       </div>
     </div>
 
-    <!-- Map Container -->
-    <div 
-      ref="mapContainer" 
-      class="w-full border border-terminal-amber-dim/50 bg-terminal-black overflow-hidden map-crt-effect relative"
-      :class="trafficOnly ? 'h-80 sm:h-[26rem]' : 'h-72 sm:h-64'"
-    >
-      <!-- Explicit, keyboard-accessible traffic toggle. Radar is never affected. -->
-      <div v-if="!trafficOnly" class="absolute top-2 right-2 z-[999] flex flex-col items-end gap-1">
-        <button
-          type="button"
-          @click="toggleTraffic"
-          :disabled="!trafficLayerReady"
-          :aria-pressed="trafficVisible"
-          :aria-label="trafficVisible ? 'Turn traffic overlay off' : 'Turn traffic overlay on'"
-          class="map-control-bg border px-2.5 py-1.5 font-bold text-[10px] tracking-widest transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-terminal-blue"
-          :class="trafficLayerReady ? (trafficVisible ? 'border-terminal-blue text-terminal-blue hover:text-terminal-amber' : 'border-terminal-amber-dim text-terminal-amber hover:text-terminal-blue') : 'border-terminal-amber-dim/40 text-terminal-amber-dim/60 cursor-not-allowed'"
-        >TRAFFIC {{ trafficLayerReady ? (trafficVisible ? '[ON]' : '[OFF]') : '[NO FEED]' }}</button>
-        <div v-if="trafficLayerReady && trafficVisible" class="map-control-bg border border-terminal-amber-dim/40 px-2 py-1 text-[9px] tracking-wide text-terminal-amber-dim">
-          {{ trafficStatus }}<span v-if="trafficLastUpdate"> · FETCH {{ trafficLastUpdate }}</span>
+    <div :class="trafficOnly ? 'min-w-0' : 'weather-map-workspace'">
+      <!-- Map Container -->
+      <div
+        ref="mapContainer"
+        class="w-full border border-terminal-amber-dim/50 bg-terminal-black overflow-hidden map-crt-effect relative"
+        :class="trafficOnly ? 'h-80 sm:h-[26rem]' : 'h-72 sm:h-64'"
+      >
+        <!-- Explicit, keyboard-accessible traffic toggle. Radar is never affected. -->
+        <div v-if="!trafficOnly" class="absolute top-2 right-2 z-[999] flex flex-col items-end gap-1">
+          <button
+            type="button"
+            @click="toggleTraffic"
+            :disabled="!trafficLayerReady"
+            :aria-pressed="trafficVisible"
+            :aria-label="trafficVisible ? 'Turn traffic overlay off' : 'Turn traffic overlay on'"
+            class="map-control-bg border px-2.5 py-1.5 font-bold text-[10px] tracking-widest transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-terminal-blue"
+            :class="trafficLayerReady ? (trafficVisible ? 'border-terminal-blue text-terminal-blue hover:text-terminal-amber' : 'border-terminal-amber-dim text-terminal-amber hover:text-terminal-blue') : 'border-terminal-amber-dim/40 text-terminal-amber-dim/60 cursor-not-allowed'"
+          >TRAFFIC {{ trafficLayerReady ? (trafficVisible ? '[ON]' : '[OFF]') : '[NO FEED]' }}</button>
+          <div v-if="trafficLayerReady && trafficVisible" class="map-control-bg border border-terminal-amber-dim/40 px-2 py-1 text-[9px] tracking-wide text-terminal-amber-dim">
+            {{ trafficStatus }}<span v-if="trafficLastUpdate"> · FETCH {{ trafficLastUpdate }}</span>
+          </div>
+        </div>
+        <div v-if="!trafficOnly && trafficVisible && (trafficStatus === 'LIVE' || trafficStatus === 'DEGRADED')" class="hidden sm:block absolute top-[72px] right-2 z-[999] map-control-bg border border-terminal-amber-dim/40 px-2 py-1 text-[9px] text-terminal-amber-dim text-right">
+          <span class="text-green-500">●</span> FLOW
+          <span class="text-amber-400">●</span> SLOW
+          <span class="text-red-500">●</span> JAM
+          <span class="text-gray-300">●</span> CLOSED
+          <div v-if="trafficStationsEnabled" class="opacity-80">SENSOR READINGS: DOTS</div>
+        </div>
+        <!-- Keep zoom tools in the map; playback and the clock live in the
+             dedicated, more legible timeline next to or below the map. -->
+        <div class="absolute bottom-2 left-2 z-[999] flex map-control-bg border border-terminal-amber-dim/50 text-xs text-terminal-amber font-bold">
+          <button aria-label="Zoom in" @click="zoomIn" class="hover:text-terminal-blue transition-colors focus:outline-none px-3 py-1.5 border-r border-terminal-amber-dim/50">+</button>
+          <button aria-label="Zoom out" @click="zoomOut" class="hover:text-terminal-blue transition-colors focus:outline-none px-3 py-1.5">−</button>
         </div>
       </div>
-      <div v-if="!trafficOnly && trafficVisible && (trafficStatus === 'LIVE' || trafficStatus === 'DEGRADED')" class="hidden sm:block absolute top-[72px] right-2 z-[999] map-control-bg border border-terminal-amber-dim/40 px-2 py-1 text-[9px] text-terminal-amber-dim text-right">
-        <span class="text-green-500">●</span> FLOW
-        <span class="text-amber-400">●</span> SLOW
-        <span class="text-red-500">●</span> JAM
-        <span class="text-gray-300">●</span> CLOSED
-        <div v-if="trafficStationsEnabled" class="opacity-80">SENSOR READINGS: DOTS</div>
-      </div>
-      <!-- Keep zoom tools in the map; playback and the clock live in the
-           dedicated, more legible timeline below the geographic viewport. -->
-      <div class="absolute bottom-2 left-2 z-[999] flex map-control-bg border border-terminal-amber-dim/50 text-xs text-terminal-amber font-bold">
-        <button aria-label="Zoom in" @click="zoomIn" class="hover:text-terminal-blue transition-colors focus:outline-none px-3 py-1.5 border-r border-terminal-amber-dim/50">+</button>
-        <button aria-label="Zoom out" @click="zoomOut" class="hover:text-terminal-blue transition-colors focus:outline-none px-3 py-1.5">−</button>
-      </div>
-    </div>
 
-    <!-- A proper temporal navigator: visible time, accessible playhead, and
-         controls outside the map so precipitation never hides the timeline. -->
-    <div v-if="!trafficOnly" class="radar-timeline border border-terminal-amber-dim/50 bg-terminal-black px-3 py-3 flex flex-col gap-2" role="group" aria-label="Radar timeline" :aria-busy="radarLoading">
-      <div class="flex flex-wrap justify-between items-center gap-x-4 gap-y-1">
-        <div class="flex flex-col gap-0.5">
-          <span class="text-[11px] tracking-[0.17em] text-terminal-amber font-bold">RADAR TIMELINE</span>
-          <span class="text-[10px] text-terminal-amber-dim">{{ isPlaying ? '◉ PLAYING' : '◯ PAUSED' }} · {{ timestamps.length ? 'PAST OBSERVATIONS' : 'AWAITING RADAR' }}</span>
+      <!-- A proper temporal navigator: visible time, accessible playhead, and
+           controls outside the map so precipitation never hides the timeline. -->
+      <div v-if="!trafficOnly" class="radar-timeline min-w-0 border border-terminal-amber-dim/50 bg-terminal-black px-3 py-3 flex flex-col gap-2" role="group" :aria-label="weatherLayer === 'radar' ? 'Radar timeline' : 'Precipitation timeline'" :aria-busy="radarLoading">
+        <div class="grid grid-cols-2 gap-1 text-xs" role="group" aria-label="Weather map layer">
+          <button v-for="mode in ['radar', 'precipitation']" :key="mode" type="button"
+            :aria-pressed="weatherLayer === mode"
+            :class="weatherLayer === mode ? 'border-terminal-blue text-terminal-blue' : 'border-terminal-amber-dim/60 text-terminal-amber'"
+            class="border px-1 py-1.5 capitalize focus-visible:outline focus-visible:outline-2 focus-visible:outline-terminal-blue"
+            @click="selectWeatherLayer(mode)">{{ mode }}</button>
         </div>
-        <div class="text-right flex flex-col gap-0.5" aria-live="off">
-          <span class="text-[10px] tracking-wider text-terminal-amber-dim">FRAME TIME</span>
-          <span class="text-xl font-bold text-terminal-blue tabular-nums leading-tight">{{ formatTime(timestamps[currentFrame]) || '--:--' }}</span>
+        <div class="flex flex-wrap justify-between items-center gap-x-4 gap-y-1">
+          <div class="flex flex-col gap-0.5">
+            <span class="text-[11px] tracking-[0.17em] text-terminal-amber font-bold">{{ weatherLayer === 'radar' ? 'RADAR TIMELINE' : 'PRECIPITATION FORECAST' }}</span>
+            <span class="text-[10px] text-terminal-amber-dim">{{ timestamps.length ? (isPlaying ? '◉ PLAYING' : '◯ PAUSED') : layerStatus }}</span>
+          </div>
+          <div class="text-right flex flex-col gap-0.5" aria-live="off">
+            <span class="text-[10px] tracking-wider text-terminal-amber-dim">{{ weatherLayer === 'radar' ? 'FRAME TIME' : 'HOUR ENDING' }}</span>
+            <span class="text-xl font-bold text-terminal-blue tabular-nums leading-tight">{{ formatTime(timestamps[currentFrame]) || '--:--' }}</span>
+          </div>
         </div>
-      </div>
-      <input
-        id="radar-time-scrubber"
-        type="range"
-        class="radar-scrubber block w-full h-5 cursor-pointer disabled:cursor-not-allowed disabled:opacity-40"
-        :min="0"
-        :max="Math.max(0, timestamps.length - 1)"
-        :step="1"
-        :value="currentFrame"
-        :disabled="timestamps.length < 2"
-        :style="{ '--radar-progress': timelineProgress + '%' }"
-        aria-label="Scrub radar timeline"
-        :aria-valuetext="formatTime(timestamps[currentFrame]) || 'Radar not loaded'"
-        @input="scrubFrame"
-      />
-      <div class="flex items-center justify-between gap-2 text-[10px] text-terminal-amber-dim tabular-nums" aria-hidden="true">
-        <span>{{ formatTime(timestamps[0]) || '--:--' }}</span>
-        <span class="tracking-wider">{{ timestamps.length ? (currentFrame + 1) + ' / ' + timestamps.length + ' · LOOP' : 'NO FRAMES' }}</span>
-        <span>{{ formatTime(timestamps[timestamps.length - 1]) || '--:--' }}</span>
-      </div>
-      <div class="flex flex-wrap gap-2 pt-1">
-        <button type="button" @click="prevFrame" :disabled="timestamps.length < 2" aria-label="Previous radar frame"
-          class="border border-terminal-amber-dim/60 px-3 py-1.5 text-xs text-terminal-amber hover:text-terminal-blue focus-visible:outline focus-visible:outline-2 focus-visible:outline-terminal-blue disabled:opacity-40">
-          ◀ PREV
-        </button>
-        <button type="button" @click="togglePlay" :disabled="timestamps.length < 2"
-          :aria-label="isPlaying ? 'Pause radar animation' : 'Play radar animation'"
-          class="border border-terminal-blue/60 px-4 py-1.5 text-xs font-bold text-terminal-blue hover:text-terminal-amber focus-visible:outline focus-visible:outline-2 focus-visible:outline-terminal-blue disabled:opacity-40">
-          {{ isPlaying ? '❚❚ PAUSE' : '▶ PLAY' }}
-        </button>
-        <button type="button" @click="nextFrame" :disabled="timestamps.length < 2" aria-label="Next radar frame"
-          class="border border-terminal-amber-dim/60 px-3 py-1.5 text-xs text-terminal-amber hover:text-terminal-blue focus-visible:outline focus-visible:outline-2 focus-visible:outline-terminal-blue disabled:opacity-40">
-          NEXT ▶
-        </button>
+        <input
+          id="radar-time-scrubber"
+          type="range"
+          class="radar-scrubber block w-full h-5 cursor-pointer disabled:cursor-not-allowed disabled:opacity-40"
+          :min="0"
+          :max="Math.max(0, timestamps.length - 1)"
+          :step="1"
+          :value="currentFrame"
+          :disabled="timestamps.length < 2"
+          :style="{ '--radar-progress': timelineProgress + '%' }"
+          :aria-label="weatherLayer === 'radar' ? 'Scrub radar timeline' : 'Scrub precipitation timeline'"
+          :aria-valuetext="formatTime(timestamps[currentFrame]) || 'No weather frames loaded'"
+          @input="scrubFrame"
+        />
+        <div class="flex items-center justify-between gap-2 text-[10px] text-terminal-amber-dim tabular-nums" aria-hidden="true">
+          <span>{{ formatTime(timestamps[0]) || '--:--' }}</span>
+          <span class="tracking-wider">{{ timestamps.length ? (currentFrame + 1) + ' / ' + timestamps.length + ' · LOOP' : 'NO FRAMES' }}</span>
+          <span>{{ formatTime(timestamps[timestamps.length - 1]) || '--:--' }}</span>
+        </div>
+        <div class="flex flex-wrap gap-2 pt-1">
+          <button type="button" @click="prevFrame" :disabled="timestamps.length < 2" :aria-label="weatherLayer === 'radar' ? 'Previous radar frame' : 'Previous precipitation frame'"
+            class="border border-terminal-amber-dim/60 px-3 py-1.5 text-xs text-terminal-amber hover:text-terminal-blue focus-visible:outline focus-visible:outline-2 focus-visible:outline-terminal-blue disabled:opacity-40">
+            ◀ PREV
+          </button>
+          <button type="button" @click="togglePlay" :disabled="timestamps.length < 2"
+            :aria-label="(isPlaying ? 'Pause ' : 'Play ') + weatherLayer + ' animation'"
+            class="border border-terminal-blue/60 px-4 py-1.5 text-xs font-bold text-terminal-blue hover:text-terminal-amber focus-visible:outline focus-visible:outline-2 focus-visible:outline-terminal-blue disabled:opacity-40">
+            {{ isPlaying ? '❚❚ PAUSE' : '▶ PLAY' }}
+          </button>
+          <button type="button" @click="nextFrame" :disabled="timestamps.length < 2" :aria-label="weatherLayer === 'radar' ? 'Next radar frame' : 'Next precipitation frame'"
+            class="border border-terminal-amber-dim/60 px-3 py-1.5 text-xs text-terminal-amber hover:text-terminal-blue focus-visible:outline focus-visible:outline-2 focus-visible:outline-terminal-blue disabled:opacity-40">
+            NEXT ▶
+          </button>
+        </div>
+        <p v-if="weatherSource === 'mrms'" class="text-[10px] text-terminal-amber-dim">
+          Observed reflectivity (dBZ): ░ 11–24.5 · ▒ 25–39.5 · ▓ 40–54.5 · █ ≥55.
+          Below 11 dBZ, missing or outside coverage is not displayed.
+        </p>
+        <p v-else-if="weatherSource === 'gdps'" class="text-[10px] text-terminal-amber-dim">
+          ECCC GDPS model forecast. Millimetres accumulated in the preceding hour.
+          <a :href="forecastLegendUrl" target="_blank" rel="noopener noreferrer" class="underline">Colour scale</a>
+        </p>
       </div>
     </div>
 
@@ -147,7 +164,11 @@
     </div>
 
     <div class="text-[10px] sm:text-xs text-terminal-amber-dim/80 flex flex-wrap gap-x-3 justify-between tracking-widest uppercase mt-[-4px]">
-      <span v-if="!trafficOnly">> Source: Rainviewer / Open-Meteo</span>
+      <span v-if="!trafficOnly">
+        &gt; <a v-if="weatherSource === 'rainviewer'" href="https://www.rainviewer.com/" target="_blank"
+          rel="noopener noreferrer" class="underline">{{ weatherAttribution }}</a><template v-else>{{ weatherAttribution }}</template>
+        · Local conditions: Open-Meteo
+      </span>
       <span v-else>> Source: Road flow / highway sensors</span>
       <span><a href="https://openfreemap.org/" target="_blank" rel="noopener noreferrer" class="underline">OpenFreeMap</a> © OpenMapTiles / <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer" class="underline">OpenStreetMap</a><template v-if="trafficRoadsEnabled"> / Traffic © <a href="https://www.tomtom.com/" target="_blank" rel="noopener noreferrer" class="underline">TomTom</a></template><template v-if="trafficStationsEnabled"> / <a href="https://wsdot.wa.gov/traffic/api/" target="_blank" rel="noopener noreferrer" class="underline">WSDOT</a></template></span>
     </div>
@@ -156,6 +177,11 @@
 
 <script setup>
 import { onMounted, onUnmounted, ref, shallowRef, computed } from 'vue'
+import {
+  isMrmsCoverage, mrmsFrameCandidates, mrmsFrames, mrmsArchiveUrl, mrmsTileUrl,
+  forecastCapabilitiesUrl, forecastLegendUrl, forecastTileUrl, readForecastFrames,
+  decodeMrmsPixel, mrmsDisplayMark
+} from '~/utils/weatherMapSources.js'
 
 const props = defineProps({
   weatherData: {
@@ -196,6 +222,22 @@ const mapContainer = ref(null)
 const mapInstance = shallowRef(null)
 
 let radarController = null
+let loadWeatherLayer
+let layerRequest
+const weatherLayer = ref('radar')
+const weatherSource = ref('')
+const layerStatus = ref('AWAITING RADAR')
+const weatherAttribution = computed(() => ({
+  mrms: 'NOAA MRMS SeamlessHSR via Iowa State IEM',
+  rainviewer: 'RainViewer radar fallback (not MRMS)',
+  gdps: 'ECCC / Meteorological Service of Canada GeoMet'
+}[weatherSource.value] || 'No weather overlay'))
+
+function selectWeatherLayer(mode) {
+  if (weatherLayer.value === mode) return
+  weatherLayer.value = mode
+  loadWeatherLayer?.(mode)
+}
 const timestamps = ref([])
 const currentFrame = ref(0)
 const isPlaying = ref(false)
@@ -217,26 +259,33 @@ const trafficStationHealth = ref('OFFLINE')
 let trafficController = null
 let weatherMapDisposed = false
 let animationInterval = null
+let playbackGeneration = 0
 
 function formatTime(unixTime) {
   if (!unixTime) return '';
   const d = new Date(unixTime * 1000);
+  if (weatherLayer.value === 'precipitation') {
+    return d.toLocaleString([], { weekday: 'short', hour: '2-digit', minute: '2-digit' })
+  }
   return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
 function stopAnimation() {
+  playbackGeneration++
   isPlaying.value = false
   if (animationInterval !== null) clearTimeout(animationInterval)
   animationInterval = null
 }
 
-function scheduleNextPlayback() {
-  if (!isPlaying.value || weatherMapDisposed) return
+function scheduleNextPlayback(generation) {
+  const active = () => generation === playbackGeneration && isPlaying.value && !weatherMapDisposed
+  if (!active()) return
   // Delay after a completed crossfade; avoid advancing into unloaded frames.
   animationInterval = setTimeout(async () => {
-    if (!isPlaying.value || weatherMapDisposed) return
+    if (!active()) return
+    animationInterval = null
     await nextFrame()
-    if (isPlaying.value && !weatherMapDisposed) scheduleNextPlayback()
+    if (active()) scheduleNextPlayback(generation)
   }, 400)
 }
 
@@ -244,7 +293,7 @@ function startAnimation() {
   if (!radarController || timestamps.value.length < 2) return
   stopAnimation()
   isPlaying.value = true
-  scheduleNextPlayback()
+  scheduleNextPlayback(playbackGeneration)
 }
 
 function togglePlay() {
@@ -258,15 +307,16 @@ async function showFrame(index) {
   }
   // The playhead shows the requested time immediately. A brief buffering
   // indicator explains why the prior frame stays visible until tiles arrive.
+  const activeController = radarController
   currentFrame.value = index
   radarLoading.value = true
   try {
-    return await radarController.showFrame(index,
+    return await activeController.showFrame(index,
       trafficVisible.value ? RADAR_OPACITY_WITH_TRAFFIC : RADAR_OPACITY_SOLO)
   } finally {
     // Rapid scrubs can supersede this request; only the most recent selection
     // may clear its pending/loading indicator.
-    if (currentFrame.value === index) radarLoading.value = false
+    if (radarController === activeController && currentFrame.value === index) radarLoading.value = false
   }
 }
 
@@ -331,7 +381,7 @@ onMounted(async () => {
     keyboard: false,
     minZoom: 4,
     maxZoom: 13
-  }).setView([lat, lon], trafficOnly.value ? 12 : 11); 
+  }).setView([lat, lon], trafficOnly.value ? 12 : 11);
 
   // MapLibre owns the whole vector/raster stack. A separate Leaflet radar pane
   // would otherwise cover road text and traffic regardless of its alpha value.
@@ -410,31 +460,84 @@ onMounted(async () => {
     trafficController.start();
 
     if (!trafficOnly.value) {
-      // Keep the pixelated RainViewer aesthetic, with geographic lines and
-      // all labels drawn on top inside the MapLibre style.
-      try {
-        const [{ createAsciiRadarLayer }, response] = await Promise.all([
-          import('~/utils/asciiRadarLayer.js'),
-          fetch('https://api.rainviewer.com/public/weather-maps.json')
-        ]);
-        if (!response.ok) throw new Error('RainViewer metadata unavailable');
-        const meta = await response.json();
-        if (weatherMapDisposed) return;
-        const past = meta.radar?.past || [];
-        if (past.length) {
-          const radar = createAsciiRadarLayer({ gl, addProtocol, removeProtocol });
-          if (radar.initialize(past.map(frame => frame.path),
-            trafficVisible.value ? RADAR_OPACITY_WITH_TRAFFIC : RADAR_OPACITY_SOLO
-          )) {
-            radarController = radar;
-            timestamps.value = past.map(frame => frame.time);
-            showFrame(0);
-            startAnimation();
+      loadWeatherLayer = async mode => {
+        layerRequest?.abort()
+        const request = new AbortController()
+        layerRequest = request
+        const { signal } = request
+        const stillActive = () => !signal.aborted && !weatherMapDisposed
+        const fetchMetadata = (url, options = {}) => fetch(url, {
+          ...options, signal: AbortSignal.any([signal, AbortSignal.timeout(6500)])
+        })
+        stopAnimation()
+        radarController?.destroy()
+        radarController = null
+        timestamps.value = []
+        currentFrame.value = 0
+        weatherSource.value = ''
+        radarLoading.value = true
+        layerStatus.value = 'LOADING ' + mode.toUpperCase()
+        try {
+          const { createAsciiRadarLayer } = await import('~/utils/asciiRadarLayer.js')
+          if (!stillActive()) return
+          let paths = [], times = [], source = '', settings = {}
+          if (mode === 'precipitation') {
+            const response = await fetchMetadata(forecastCapabilitiesUrl)
+            if (!response.ok) throw Error('Forecast metadata unavailable')
+            paths = readForecastFrames(await response.text())
+            times = paths.map(frame => frame.time)
+            source = 'gdps'
+            settings = { providerTile: forecastTileUrl, providerMaxZoom: 6, keepProviderColors: true }
+          } else {
+            if (isMrmsCoverage(lat, lon)) {
+              for (const time of mrmsFrameCandidates()) {
+                if (!stillActive()) return
+                try {
+                  const available = await fetchMetadata(mrmsArchiveUrl(time), { method: 'HEAD' })
+                  if (!available.ok || !available.headers.get('content-type')?.includes('image/png')) continue
+                  paths = times = mrmsFrames(time)
+                  source = 'mrms'
+                  settings = {
+                    providerTile: mrmsTileUrl, providerMaxZoom: 8,
+                    pixelMark: (r, g, b, a) => mrmsDisplayMark(decodeMrmsPixel(r, g, b, a))
+                  }
+                  break
+                } catch {
+                  // Network or timeout: try the existing observation provider
+                  // instead of spending up to four timeouts on archive probes.
+                  break
+                }
+              }
+            }
+            if (!stillActive()) return
+            if (!paths.length) {
+              const response = await fetchMetadata('https://api.rainviewer.com/public/weather-maps.json')
+              if (!response.ok) throw Error('Radar metadata unavailable')
+              const past = (await response.json()).radar?.past ?? []
+              const frames = past.filter(frame => frame.path?.startsWith('/') && Number.isFinite(frame.time)).slice(-12)
+              paths = frames.map(frame => frame.path)
+              times = frames.map(frame => frame.time)
+              source = 'rainviewer'
+            }
           }
+          if (!stillActive()) return
+          if (!paths.length) throw Error('No weather frames available')
+          const layer = createAsciiRadarLayer({ gl, addProtocol, removeProtocol, ...settings })
+          if (!layer.initialize(paths, trafficVisible.value ? RADAR_OPACITY_WITH_TRAFFIC : RADAR_OPACITY_SOLO)) {
+            throw Error('Weather layer did not initialize')
+          }
+          radarController = layer
+          timestamps.value = times
+          weatherSource.value = source
+          await showFrame(0)
+          if (stillActive() && mode === 'radar') startAnimation()
+        } catch {
+          if (stillActive()) layerStatus.value = mode === 'radar' ? 'RADAR UNAVAILABLE' : 'FORECAST UNAVAILABLE'
+        } finally {
+          if (stillActive()) radarLoading.value = false
         }
-      } catch (error) {
-        console.error('[RADAR] Precipitation layer unavailable', error);
       }
+      void loadWeatherLayer(weatherLayer.value)
     }
   });
 
@@ -443,6 +546,7 @@ onMounted(async () => {
 
 onUnmounted(() => {
   weatherMapDisposed = true;
+  layerRequest?.abort();
   stopAnimation();
   radarLoading.value = false;
   if (trafficController) trafficController.destroy();
@@ -492,6 +596,20 @@ onUnmounted(() => {
 
 .radar-scrubber:focus-visible {
   outline: 2px solid #00d2ff;
+}
+
+.weather-map-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1rem;
+  min-width: 0;
+}
+
+@media (min-width: 1024px) {
+  .weather-map-workspace {
+    grid-template-columns: minmax(0, 1fr) clamp(17rem, 23vw, 21rem);
+    align-items: start;
+  }
 }
 
 /* Leaflet transforms its panes and MapLibre composites a WebGL canvas.
