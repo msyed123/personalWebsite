@@ -38,10 +38,11 @@
       <div v-else class="absolute top-2 right-2 z-[999] map-control-bg border border-terminal-amber-dim/50 px-2 py-1 text-[10px] text-terminal-amber-dim">
         TRF: NO KEY
       </div>
-      <div v-if="trafficVisible && trafficStatus === 'LIVE'" class="absolute top-9 right-2 z-[999] map-control-bg px-2 py-1 text-[9px] text-terminal-amber-dim">
+      <div v-if="trafficVisible && (trafficStatus === 'LIVE' || trafficStatus === 'DEGRADED')" class="absolute top-9 right-2 z-[999] map-control-bg px-2 py-1 text-[9px] text-terminal-amber-dim">
         <span class="text-green-500">●</span> FLOW
         <span class="text-amber-400">●</span> SLOW
         <span class="text-red-500">●</span> JAM
+        <span v-if="trafficLastUpdate" class="ml-1">SYNC {{ trafficLastUpdate }}</span>
       </div>
       <!-- Controls overlays -->
       <div class="absolute bottom-2 left-2 z-[999] flex map-control-bg border border-terminal-amber-dim/50 text-xs text-terminal-amber font-bold">
@@ -60,7 +61,7 @@
 
     <div class="text-[10px] sm:text-xs text-terminal-amber-dim/50 flex flex-wrap gap-x-3 justify-between tracking-widest uppercase mt-[-4px]">
       <span>> Source: Rainviewer / Open-Meteo</span>
-      <span><a href="https://openfreemap.org/" target="_blank" rel="noopener noreferrer" class="underline">OpenFreeMap</a> © OpenMapTiles / <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer" class="underline">OpenStreetMap</a><template v-if="trafficStatus !== 'NO KEY'"> / Traffic © <a href="https://www.tomtom.com/" target="_blank" rel="noopener noreferrer" class="underline">TomTom</a></template></span>
+      <span><a href="https://openfreemap.org/" target="_blank" rel="noopener noreferrer" class="underline">OpenFreeMap</a> © OpenMapTiles / <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer" class="underline">OpenStreetMap</a><template v-if="trafficRoadsEnabled"> / Traffic © <a href="https://www.tomtom.com/" target="_blank" rel="noopener noreferrer" class="underline">TomTom</a></template><template v-if="trafficStationsEnabled"> / <a href="https://wsdot.wa.gov/traffic/api/" target="_blank" rel="noopener noreferrer" class="underline">WSDOT</a></template></span>
     </div>
   </div>
 </template>
@@ -107,8 +108,10 @@ const isPlaying = ref(false)
 const trafficStatus = ref('NO KEY')
 const trafficVisible = ref(false)
 const trafficLayerReady = ref(false)
-let trafficLayer = null
-let trafficRefreshInterval = null
+const trafficRoadsEnabled = ref(false)
+const trafficStationsEnabled = ref(false)
+const trafficLastUpdate = ref('')
+let trafficController = null
 let weatherMapDisposed = false
 let animationInterval = null
 
@@ -159,15 +162,9 @@ function prevFrame() {
 }
 
 function toggleTraffic() {
-  if (weatherMapDisposed || !trafficLayer || !mapInstance.value) return
-  if (trafficVisible.value) {
-    mapInstance.value.removeLayer(trafficLayer)
-    trafficVisible.value = false
-  } else {
-    trafficStatus.value = 'LOADING'
-    trafficLayer.addTo(mapInstance.value)
-    trafficVisible.value = true
-  }
+  if (weatherMapDisposed || !trafficController || !trafficLayerReady.value) return
+  trafficVisible.value = !trafficVisible.value
+  trafficController.setVisible(trafficVisible.value)
 }
 
 function zoomIn() {
@@ -208,9 +205,7 @@ onMounted(async () => {
   }).setView([lat, lon], 10); 
 
   // OpenFreeMap vector base -> traffic lines -> pixelated RainViewer radar.
-  mapInstance.value.createPane('trafficPane');
-  mapInstance.value.getPane('trafficPane').style.zIndex = '350';
-  mapInstance.value.getPane('trafficPane').style.pointerEvents = 'none';
+  // Traffic is rendered by MapLibre within the basemap; radar remains in Leaflet.
   mapInstance.value.createPane('radarPane');
   mapInstance.value.getPane('radarPane').style.zIndex = '450';
   mapInstance.value.getPane('radarPane').style.pointerEvents = 'none';
@@ -222,12 +217,13 @@ onMounted(async () => {
     attributionControl: false
   }).addTo(mapInstance.value);
 
-  // Recolor only geography. Live traffic and radar retain their meaningful data colors.
+  // Keep the provider-independent traffic renderer completely separate from radar.
   const gl = baseMap.getMaplibreMap();
-  gl.once('load', () => {
+  gl.once('load', async () => {
+    if (weatherMapDisposed) return;
     for (const layer of gl.getStyle().layers || []) {
       const id = layer.id;
-      if (id === 'background') gl.setPaintProperty(id, 'background-color', '#090c0f');
+      if (id === 'background' && layer.type === 'background') gl.setPaintProperty(id, 'background-color', '#090c0f');
       if (id === 'water' && layer.type === 'fill') gl.setPaintProperty(id, 'fill-color', '#111e27');
       if (id === 'waterway' && layer.type === 'line') gl.setPaintProperty(id, 'line-color', '#1b3545');
       if (layer.type === 'line' && /^highway_(major|minor|primary)/.test(id)) {
@@ -237,42 +233,30 @@ onMounted(async () => {
         gl.setPaintProperty(id, 'text-color', '#b37700');
       }
     }
+    const { createTrafficMap } = await import('~/utils/trafficMap.js');
+    if (weatherMapDisposed) return;
+    trafficController = createTrafficMap({
+      gl,
+      leafletMap: mapInstance.value,
+      onStatus: (status) => { trafficStatus.value = status },
+      onReady: (ready) => {
+        trafficLayerReady.value = ready;
+        trafficVisible.value = ready;
+      },
+      onSources: ({ roads, stations }) => {
+        trafficRoadsEnabled.value = roads;
+        trafficStationsEnabled.value = stations;
+      },
+      onUpdate: (iso) => {
+        trafficLastUpdate.value = iso
+          ? new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          : '';
+      }
+    });
+    trafficController.start();
   });
 
-  // Only show the traffic feed when a server-side TomTom key is configured.
-  fetch('/api/traffic/status')
-    .then(res => {
-      if (!res.ok) throw new Error('Traffic status unavailable');
-      return res.json();
-    })
-    .then(({ enabled }) => {
-      if (weatherMapDisposed || !mapInstance.value) return;
-      if (!enabled) { trafficStatus.value = 'NO KEY'; return; }
-      trafficStatus.value = 'LOADING';
-      const trafficUrl = () => `/api/traffic/flow/{z}/{x}/{y}?v=${Math.floor(Date.now() / 300000)}`;
-      trafficLayer = L.tileLayer(trafficUrl(), {
-        pane: 'trafficPane',
-        minZoom: 6,
-        maxZoom: 13,
-        opacity: 0.88,
-        tileSize: 256,
-        updateWhenIdle: true
-      });
-      trafficLayerReady.value = true;
-      trafficLayer.on('tileload', () => { trafficStatus.value = 'LIVE'; });
-      trafficLayer.on('tileerror', () => { trafficStatus.value = 'ERROR'; });
-      trafficLayer.addTo(mapInstance.value);
-      trafficVisible.value = true;
-      trafficRefreshInterval = setInterval(() => {
-        if (trafficVisible.value && trafficLayer) {
-          trafficStatus.value = 'LOADING';
-          trafficLayer.setUrl(trafficUrl());
-        }
-      }, 300000);
-    })
-    .catch(() => { trafficStatus.value = 'OFFLINE'; });
-
-  // Define the custom ASCII Canvas GridLayer
+    // Define the custom ASCII Canvas GridLayer
   const AsciiRadarLayer = L.GridLayer.extend({
     createTile: function(coords, done) {
       var tile = document.createElement('canvas');
@@ -442,8 +426,8 @@ onMounted(async () => {
 
 onUnmounted(() => {
   weatherMapDisposed = true;
-  if (trafficRefreshInterval) clearInterval(trafficRefreshInterval);
-  trafficLayer = null;
+  if (trafficController) trafficController.destroy();
+  trafficController = null;
   stopAnimation();
   if (mapInstance.value) {
     mapInstance.value.remove();
