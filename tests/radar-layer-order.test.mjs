@@ -61,6 +61,10 @@ test('dual ASCII radar layers stay below geographic roads and crossfade old/new 
   assert.deepEqual(gl.calls.map(c=>c.beforeId),['highway_minor','highway_minor'])
   assert.equal(gl.layers.get(radar.layerIds[0]).paint['raster-opacity'],0.55)
   assert.equal(gl.layers.get(radar.layerIds[1]).paint['raster-opacity'],0)
+  assert.deepEqual(gl.layers.get(radar.layerIds[0]).paint['raster-opacity-transition'],
+    { duration:0, delay:0 })
+  assert.deepEqual(gl.layers.get(radar.layerIds[1]).paint['raster-opacity-transition'],
+    { duration:0, delay:0 })
 
   await radar.showFrame(1,0.55)
   assert.equal(gl.layers.get(radar.layerIds[0]).paint['raster-opacity'],0)
