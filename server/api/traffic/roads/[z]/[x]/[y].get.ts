@@ -36,7 +36,7 @@ export default defineEventHandler(async (event) => {
     // Send only a safe failure category. Never expose the TomTom key, full
     // provider URL, or raw upstream response to public visitors.
     const message = String(error?.message || '')
-    const upstream = /TomTom traffic request failed: HTTP (\\d{3})/.exec(message)
+    const upstream = /TomTom traffic request failed: HTTP (\d{3})/.exec(message)
     const upstreamStatus = upstream ? Number(upstream[1]) : null
     const category = upstreamStatus === 401 || upstreamStatus === 403
       ? 'AUTHORIZATION'
