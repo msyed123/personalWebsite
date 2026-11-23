@@ -26,7 +26,10 @@ export default defineEventHandler(async event => {
     throw createError({ statusCode: 403, statusMessage: 'Forbidden' })
   }
   const length = Number(getHeader(event, 'content-length') || '0')
-  if (length > 4096 || !String(getHeader(event, 'content-type') || '').startsWith(
+  // Browser forms include a small Content-Length. Reject unknown/chunked or
+  // oversized bodies before attempting FormData parsing.
+  if (!Number.isInteger(length) || length < 1 || length > 1024 ||
+      !String(getHeader(event, 'content-type') || '').startsWith(
     'application/x-www-form-urlencoded'
   )) {
     throw createError({ statusCode: 400, statusMessage: 'Invalid renewal form' })
