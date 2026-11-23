@@ -36,6 +36,15 @@ const realFetch=globalThis.fetch
 globalThis.fetch=(input,init)=>{
  const url=typeof input==='string'?input:input?.url||''
  if(url.startsWith('https://api.tomtom.com/maps/orbis/traffic/flow/vector/tile/')){
+   const requestHeaders = new Headers(init?.headers)
+   const verified = requestHeaders.get('TomTom-Api-Key') === 'ci-dummy-key' &&
+     requestHeaders.get('TomTom-Api-Version') === '2' &&
+     requestHeaders.get('Accept') === 'application/vnd.mapbox-vector-tile' &&
+     new URL(url).searchParams.get('apiVersion') === '2'
+   if(!verified) {
+     // Prevent the route smoke test from silently passing on an invalid request.
+     return Promise.resolve(new Response('Invalid simulated Orbis v2 request', {status:400}))
+   }
    return Promise.resolve(new Response(tile,{status:200,headers:{'Content-Type':'application/vnd.mapbox-vector-tile'}}))
  }
  return realFetch(input,init)
