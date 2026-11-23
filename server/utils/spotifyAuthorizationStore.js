@@ -1,4 +1,4 @@
-import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto'
+import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto'
 
 // Persistence is external because Heroku dyno files disappear on restart.
 // Every Redis request is server-to-server; never return the Redis API key or
@@ -8,9 +8,8 @@ const KEY = 'personalWebsite:spotify:owner-authorization:v1'
 function config() {
   const url = process.env.UPSTASH_REDIS_REST_URL
   const token = process.env.UPSTASH_REDIS_REST_TOKEN
-  const admin = process.env.SPOTIFY_ADMIN_SECRET
-  const spotify = process.env.SPOTIFY_CLIENT_SECRET
-  if (!url || !token || !admin || admin.length < 32 || !spotify) {
+  const encryptionKeyHex = process.env.SPOTIFY_TOKEN_ENCRYPTION_KEY
+  if (!url || !token || !/^[0-9a-f]{64}$/i.test(encryptionKeyHex || '')) {
     throw new Error('Spotify renewal storage is not configured')
   }
   const endpoint = new URL(url)
@@ -18,7 +17,7 @@ function config() {
       endpoint.search || endpoint.hash || endpoint.pathname !== '/') {
     throw new Error('Invalid Spotify token store URL')
   }
-  return { endpoint: endpoint.toString(), token, admin, spotify }
+  return { endpoint: endpoint.toString(), token, encryptionKeyHex }
 }
 
 export function renewalStoreReady() {
@@ -26,14 +25,9 @@ export function renewalStoreReady() {
 }
 
 function encryptionKey(settings) {
-  // Rotate the admin secret or Spotify client secret only when reauthorizing:
-  // both participate in the at-rest encryption key derivation.
-  return createHash('sha256')
-    .update('personalWebsite-spotify-v1\0')
-    .update(settings.admin)
-    .update('\0')
-    .update(settings.spotify)
-    .digest()
+  // A separate 256-bit key stays fixed when the Spotify client secret or
+  // owner login key rotates. Its hex value is server-only and never in Redis.
+  return Buffer.from(settings.encryptionKeyHex, 'hex')
 }
 
 async function command(args, settings, request) {
