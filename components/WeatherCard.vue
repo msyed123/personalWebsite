@@ -27,6 +27,22 @@
       ref="mapContainer" 
       class="w-full h-48 sm:h-64 border border-terminal-amber-dim/50 bg-terminal-black overflow-hidden map-crt-effect relative"
     >
+      <!-- Road flow is real traffic data; do not imply a live feed without it. -->
+      <button
+        v-if="trafficStatus !== 'NO KEY'"
+        @click="toggleTraffic"
+        class="absolute top-2 right-2 z-[999] map-control-bg border border-terminal-amber-dim/50 px-2 py-1 text-[10px] text-terminal-amber tracking-wider hover:text-terminal-blue"
+        :disabled="!trafficLayerReady"
+        :title="trafficVisible ? 'Hide road traffic' : 'Show road traffic'"
+      >TRF: {{ trafficVisible ? trafficStatus : 'OFF' }}</button>
+      <div v-else class="absolute top-2 right-2 z-[999] map-control-bg border border-terminal-amber-dim/50 px-2 py-1 text-[10px] text-terminal-amber-dim">
+        TRF: NO KEY
+      </div>
+      <div v-if="trafficVisible && trafficStatus === 'LIVE'" class="absolute top-9 right-2 z-[999] map-control-bg px-2 py-1 text-[9px] text-terminal-amber-dim">
+        <span class="text-green-500">●</span> FLOW
+        <span class="text-amber-400">●</span> SLOW
+        <span class="text-red-500">●</span> JAM
+      </div>
       <!-- Controls overlays -->
       <div class="absolute bottom-2 left-2 z-[999] flex map-control-bg border border-terminal-amber-dim/50 text-xs text-terminal-amber font-bold">
         <button @click="togglePlay" class="hover:text-terminal-blue transition-colors focus:outline-none w-16 text-left px-3 py-1.5">{{ isPlaying ? '|| PAUSE' : '► PLAY' }}</button>
@@ -42,9 +58,9 @@
       </div>
     </div>
 
-    <div class="text-[10px] sm:text-xs text-terminal-amber-dim/50 flex justify-between tracking-widest uppercase mt-[-4px]">
+    <div class="text-[10px] sm:text-xs text-terminal-amber-dim/50 flex flex-wrap gap-x-3 justify-between tracking-widest uppercase mt-[-4px]">
       <span>> Source: Rainviewer / Open-Meteo</span>
-      <span>SYS.OP.OK</span>
+      <span><a href="https://openfreemap.org/" target="_blank" rel="noopener noreferrer" class="underline">OpenFreeMap</a> © OpenMapTiles / <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer" class="underline">OpenStreetMap</a><template v-if="trafficStatus !== 'NO KEY'"> / Traffic © <a href="https://www.tomtom.com/" target="_blank" rel="noopener noreferrer" class="underline">TomTom</a></template></span>
     </div>
   </div>
 </template>
@@ -88,6 +104,11 @@ const radarLayers = shallowRef([])
 const timestamps = ref([])
 const currentFrame = ref(0)
 const isPlaying = ref(false)
+const trafficStatus = ref('NO KEY')
+const trafficVisible = ref(false)
+const trafficLayerReady = ref(false)
+let trafficLayer = null
+let trafficRefreshInterval = null
 let animationInterval = null
 
 function formatTime(unixTime) {
