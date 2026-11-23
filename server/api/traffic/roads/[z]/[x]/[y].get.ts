@@ -16,7 +16,10 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 503, statusMessage: 'Road traffic not configured' })
   }
   const coords = ['z', 'x', 'y'].map((param) => getRouterParam(event, param))
-  if (coords.some((v) => !/^\\d+$/.test(v || ''))) {
+  const isUnsignedInteger = (v: string | undefined) =>
+    typeof v === 'string' && v.length > 0 &&
+    [...v].every((character) => character >= '0' && character <= '9')
+  if (coords.some((v) => !isUnsignedInteger(v))) {
     throw createError({ statusCode: 400, statusMessage: 'Invalid tile coordinate' })
   }
   const [z, x, y] = coords.map(Number)
