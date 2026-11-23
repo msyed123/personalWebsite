@@ -26,6 +26,8 @@ export function createAsciiRadarLayer({
   let blendFraction = 0
   let loadingIncoming = false
   let pendingIndex = null
+  let loadingIndex = null
+  let cancelPendingLoad = null
   let running = null
   let cancelFade = null
   const waiting = new Set()
@@ -132,11 +134,14 @@ export function createAsciiRadarLayer({
       let done = false
       let timeout
       const wait = { finish }
+      const cancel = () => finish(false)
+      cancelPendingLoad = cancel
       function finish(success) {
         if (done) return
         done = true
         clearTimeout(timeout)
         gl.off?.('sourcedata', onData)
+        if (cancelPendingLoad === cancel) cancelPendingLoad = null
         waiting.delete(wait)
         resolve(success)
       }
@@ -187,10 +192,12 @@ export function createAsciiRadarLayer({
       const slot = 1 - activeSlot
       blendFraction = 0
       loadingIncoming = true
+      loadingIndex = incomingIndex
       gl.getSource(sourceIds[slot])?.setTiles([tileUrl(incomingIndex)])
       applyBlend()
       const ready = await waitUntilLoaded(sourceIds[slot])
       loadingIncoming = false
+      loadingIndex = null
       if (disposed) return false
       // Fast scrubbing keeps only the latest target, without flashing intermediate
       // radar frames or allowing an old tile request to overwrite a newer one.
@@ -265,6 +272,8 @@ export function createAsciiRadarLayer({
     }
     setOpacity(alpha)
     pendingIndex = index
+    // Do not block a fast scrub on a no-longer-wanted network tile.
+    if (loadingIndex !== null && loadingIndex !== index) cancelPendingLoad?.()
     if (!running) {
       running = flushRequests().finally(() => {
         running = null
@@ -279,6 +288,8 @@ export function createAsciiRadarLayer({
     if (!initialized) return
     disposed = true
     pendingIndex = null
+    loadingIndex = null
+    cancelPendingLoad?.()
     cancelFade?.()
     for (const item of waiting) item.finish(false)
     for (let i = 0; i < 2; i++) {
