@@ -54,6 +54,7 @@ try{
    const page=await browser.newPage({viewport:{width,height},locale:'en-US',timezoneId:'America/Los_Angeles',deviceScaleFactor:1})
    const errors=[]
    let radarRequests=0
+   const sourceTileRequests = new Map()
    page.on('pageerror',err=>errors.push(String(err.message)))
    page.on('request',req=>{if(req.url().includes('rainviewer.com'))radarRequests++})
    // Both terminal commands now use the same-origin Nitro proxy, not direct
@@ -79,6 +80,7 @@ try{
    }))
    await page.route('https://tilecache.rainviewer.com/**',route=>{
      const url=route.request().url()
+     sourceTileRequests.set(url,(sourceTileRequests.get(url)||0)+1)
      const variant=url.includes('/test-3/')?2:url.includes('/test-2/')?1:0
      return route.fulfill({status:200,contentType:'image/png',body:variants[variant]})
    })
@@ -152,10 +154,52 @@ try{
      null, {timeout:20000})
    await weatherCard.screenshot({path:`preview-output/weather-timeline-wrapped-${name}.png`})
    if(radarRequests < 2)throw Error('ASCII radar was never requested inside MapLibre: '+radarRequests)
+   if((await timeline.innerText()).includes('LOADING FRAME')) {
+     throw Error('Timeline status must not change width for every frame')
+   }
+
+   // Load every precipitation frame for the current viewport exactly once.
+   // All subsequent rounds should reuse the cached PNG and rendered ASCII
+   // canvases, with no further RainViewer CDN requests.
+   const timelineLayout=async () => timeline.evaluate(el=>{
+     const slider=el.querySelector('[aria-label="Scrub radar timeline"]')
+     const a=el.getBoundingClientRect(), b=slider.getBoundingClientRect()
+     return {height:Math.round(a.height),playheadOffset:Math.round(b.top-a.top)}
+   })
+   const beforeLoopLayout=await timelineLayout()
+   const chooseFrame=async target=>{
+     await slider.evaluate((el,value)=>{
+       el.value=String(value)
+       el.dispatchEvent(new Event('input',{bubbles:true}))
+     },target)
+     await page.waitForFunction(value=>
+       document.querySelector('[aria-label="Scrub radar timeline"]')?.value===String(value),
+       target,{timeout:10000})
+     await page.waitForFunction(()=>
+       document.querySelector('[aria-label="Radar timeline"]')?.getAttribute('aria-busy')==='false',
+       null,{timeout:20000})
+   }
+   await chooseFrame(1)
+   await chooseFrame(2)
+   await chooseFrame(0)
+   const loadedOnce=Array.from(sourceTileRequests.values()).reduce((a,b)=>a+b,0)
+   if(loadedOnce<3)throw Error('Expected first-time tiles for three frames; got '+loadedOnce)
+   await chooseFrame(1)
+   await chooseFrame(2)
+   await chooseFrame(0)
+   const afterSecondLoop=Array.from(sourceTileRequests.values()).reduce((a,b)=>a+b,0)
+   if(afterSecondLoop!==loadedOnce) {
+     throw Error('Loop re-fetched '+(afterSecondLoop-loadedOnce)+' cached radar PNGs')
+   }
+   const afterLoopLayout=await timelineLayout()
+   if(JSON.stringify(beforeLoopLayout)!==JSON.stringify(afterLoopLayout)) {
+     throw Error('Scrubber box shifts between frames: '+JSON.stringify({beforeLoopLayout,afterLoopLayout}))
+   }
    if(errors.length)throw Error('Browser errors: '+JSON.stringify(errors))
    summaries.push({name,radarRequestsBeforeWeather:0,radarRequestsAfterWeather:radarRequests,
      sliderMax:await slider.getAttribute('max'),sliderValue:await slider.inputValue(),
-     ...info,pageErrors:errors})
+     firstPassCDNRequests:loadedOnce,secondPassCDNRequests:afterSecondLoop,
+     timelineLayout:afterLoopLayout,...info,pageErrors:errors})
    await page.close()
  }
  writeFileSync('preview-output/traffic-browser-report.json',JSON.stringify(summaries,null,2))
