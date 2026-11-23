@@ -157,6 +157,18 @@ function prevFrame() {
   showFrame(prev);
 }
 
+function toggleTraffic() {
+  if (!trafficLayer || !mapInstance.value) return
+  if (trafficVisible.value) {
+    mapInstance.value.removeLayer(trafficLayer)
+    trafficVisible.value = false
+  } else {
+    trafficStatus.value = 'LOADING'
+    trafficLayer.addTo(mapInstance.value)
+    trafficVisible.value = true
+  }
+}
+
 function zoomIn() {
   if (mapInstance.value) mapInstance.value.zoomIn();
 }
@@ -168,12 +180,17 @@ function zoomOut() {
 onMounted(async () => {
   // Dynamically import Leaflet so it doesn't break Nuxt 3 SSR
   const L = (await import('leaflet')).default;
+  const { maplibreGL } = await import('@maplibre/maplibre-gl-leaflet');
+  const { setWorkerUrl } = await import('maplibre-gl');
+  const { default: workerUrl } = await import('maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url');
+  setWorkerUrl(workerUrl);
   await import('leaflet/dist/leaflet.css');
+  await import('maplibre-gl/dist/maplibre-gl.css');
 
   if (!mapContainer.value) return;
 
-  const lat = props.weatherData.lat || 29.6516;
-  const lon = props.weatherData.lon || -82.3248;
+  const lat = props.weatherData.lat ?? 47.6062;
+  const lon = props.weatherData.lon ?? -122.3321;
 
   // Set default zoom dramatically closer to 10
   mapInstance.value = L.map(mapContainer.value, {
@@ -189,10 +206,70 @@ onMounted(async () => {
     maxZoom: 13
   }).setView([lat, lon], 10); 
 
-  // CartoDB Dark Matter basemap looks pristine for a CLI environment
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-    maxZoom: 19
+  // OpenFreeMap vector base -> traffic lines -> pixelated RainViewer radar.
+  mapInstance.value.createPane('trafficPane');
+  mapInstance.value.getPane('trafficPane').style.zIndex = '350';
+  mapInstance.value.getPane('trafficPane').style.pointerEvents = 'none';
+  mapInstance.value.createPane('radarPane');
+  mapInstance.value.getPane('radarPane').style.zIndex = '450';
+  mapInstance.value.getPane('radarPane').style.pointerEvents = 'none';
+
+  // Vector tiles are public and keyless. The Leaflet bridge preserves the existing GridLayer radar.
+  const baseMap = maplibreGL({
+    style: 'https://tiles.openfreemap.org/styles/dark',
+    interactive: false,
+    attributionControl: false
   }).addTo(mapInstance.value);
+
+  // Recolor only geography. Live traffic and radar retain their meaningful data colors.
+  const gl = baseMap.getMaplibreMap();
+  gl.once('load', () => {
+    for (const layer of gl.getStyle().layers || []) {
+      const id = layer.id;
+      if (id === 'background') gl.setPaintProperty(id, 'background-color', '#090c0f');
+      if (id === 'water' && layer.type === 'fill') gl.setPaintProperty(id, 'fill-color', '#111e27');
+      if (id === 'waterway' && layer.type === 'line') gl.setPaintProperty(id, 'line-color', '#1b3545');
+      if (layer.type === 'line' && /^highway_(major|minor|primary)/.test(id)) {
+        gl.setPaintProperty(id, 'line-color', id.includes('casing') ? '#211c14' : '#59431d');
+      }
+      if (layer.type === 'symbol' && /^(place|road_name|highway_name)/.test(id)) {
+        gl.setPaintProperty(id, 'text-color', '#b37700');
+      }
+    }
+  });
+
+  // Only show the traffic feed when a server-side TomTom key is configured.
+  fetch('/api/traffic/status')
+    .then(res => {
+      if (!res.ok) throw new Error('Traffic status unavailable');
+      return res.json();
+    })
+    .then(({ enabled }) => {
+      if (!mapInstance.value) return;
+      if (!enabled) { trafficStatus.value = 'NO KEY'; return; }
+      trafficStatus.value = 'LOADING';
+      const trafficUrl = () => `/api/traffic/flow/{z}/{x}/{y}?v=${Math.floor(Date.now() / 300000)}`;
+      trafficLayer = L.tileLayer(trafficUrl(), {
+        pane: 'trafficPane',
+        minZoom: 6,
+        maxZoom: 13,
+        opacity: 0.88,
+        tileSize: 256,
+        updateWhenIdle: true
+      });
+      trafficLayerReady.value = true;
+      trafficLayer.on('tileload', () => { trafficStatus.value = 'LIVE'; });
+      trafficLayer.on('tileerror', () => { trafficStatus.value = 'ERROR'; });
+      trafficLayer.addTo(mapInstance.value);
+      trafficVisible.value = true;
+      trafficRefreshInterval = setInterval(() => {
+        if (trafficVisible.value && trafficLayer) {
+          trafficStatus.value = 'LOADING';
+          trafficLayer.setUrl(trafficUrl());
+        }
+      }, 300000);
+    })
+    .catch(() => { trafficStatus.value = 'OFFLINE'; });
 
   // Define the custom ASCII Canvas GridLayer
   const AsciiRadarLayer = L.GridLayer.extend({
@@ -342,6 +419,7 @@ onMounted(async () => {
       const layers = past.map((p, idx) => {
         const layer = new AsciiRadarLayer({
           tileSize: 256,
+          pane: 'radarPane',
           opacity: 0,
           zIndex: 10 + idx,
           rainPath: p.path
@@ -362,6 +440,8 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  if (trafficRefreshInterval) clearInterval(trafficRefreshInterval);
+  trafficLayer = null;
   stopAnimation();
   if (mapInstance.value) {
     mapInstance.value.remove();
