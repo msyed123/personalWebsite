@@ -21,8 +21,10 @@ for(const variant of [1,2]) {
   const alt=new PNG({width:256,height:256})
   for(let y=0;y<256;y++)for(let x=0;x<256;x++) {
     const i=(y*256+x)*4
-    const dx=(x-(variant===1?84:215))/46
-    const dy=(y-(variant===1?85:215))/38
+    // Keep all three storm fields over the small cropped Seattle viewport at
+    // z=7, while changing both position and rain intensity between frames.
+    const dx=(x-(variant===1?143:112))/46
+    const dy=(y-(variant===1?192:175))/38
     const rain=dx*dx+dy*dy<1.4 && (x*13+y*17)%29!==0
     alt.data[i]=rain?(variant===1?210:15):0
     alt.data[i+1]=rain?(variant===1?135:195):0
@@ -139,7 +141,9 @@ try{
    await weatherCard.screenshot({path:`preview-output/weather-timeline-${name}.png`})
    await page.getByRole('button',{name:'Next radar frame'}).click()
    await page.waitForFunction(() => document.querySelector('input[aria-label="Scrub radar timeline"]')?.value==='0')
-   await page.waitForTimeout(1200)
+   await page.waitForTimeout(350)
+   await weatherCard.screenshot({path:`preview-output/weather-timeline-midfade-${name}.png`})
+   await page.waitForTimeout(850)
    await weatherCard.screenshot({path:`preview-output/weather-timeline-wrapped-${name}.png`})
    if(radarRequests < 2)throw Error('ASCII radar was never requested inside MapLibre: '+radarRequests)
    if(errors.length)throw Error('Browser errors: '+JSON.stringify(errors))
