@@ -1,0 +1,46 @@
+name: Capture actual WeatherCard with mock data
+
+on:
+  push:
+    branches:
+      - feature/openfreemap-live-traffic
+    paths:
+      - 'pages/__weather-preview.vue'
+      - '.github/scripts/capture-weather-preview.mjs'
+      - '.github/workflows/weather-preview.yml'
+  workflow_dispatch:
+
+jobs:
+  screenshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm install --no-audit --no-fund
+      - run: npm install --no-save playwright
+      - run: npx playwright install --with-deps chromium
+      - name: Build Nuxt
+        run: npm run build
+      - name: Start production preview server
+        run: |
+          NITRO_PORT=3456 NITRO_HOST=127.0.0.1 node .output/server/index.mjs > /tmp/nuxt-weather-preview.log 2>&1 &
+          echo $! > /tmp/nuxt-weather-preview.pid
+          for attempt in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:3456/__weather-preview > /dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          cat /tmp/nuxt-weather-preview.log
+          exit 1
+      - name: Render real WeatherCard using fake traffic and radar
+        run: node .github/scripts/capture-weather-preview.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: weather-card-mock-preview
+          path: preview-output/
+          if-no-files-found: warn
