@@ -42,7 +42,8 @@ try {
   await input.press('Enter')
   await page.getByText('LIVE TRAFFIC SIGNAL').waitFor({timeout:20000})
   assert.equal(await page.getByText('LIVE RADAR SIGNAL').count(),0,'Weather card not dismissed on new command')
-  console.log('PASS: Browser weather command loads through same-origin Nitro route, clears Locating, and traffic mode remains functional')
+  await page.waitForFunction(() => document.body.innerText.includes('TOMTOM ROADS: AUTH ERROR'), {timeout:25000})
+  console.log('PASS: Browser weather uses same-origin Nitro and TomTom errors display safe provider health')
   await page.close()
 } finally {
   if(browser) await browser.close()
