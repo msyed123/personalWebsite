@@ -51,7 +51,7 @@ try{
  browser=await chromium.launch({headless:true,args:['--no-sandbox','--disable-dev-shm-usage','--use-gl=angle','--use-angle=swiftshader']})
  const summaries=[]
  for(const [name,width,height] of [['desktop',1100,930],['mobile',390,844]]){
-   const page=await browser.newPage({viewport:{width,height},locale:'en-US',timezoneId:'America/Los_Angeles',deviceScaleFactor:1})
+   const page=await browser.newPage({viewport:{width,height},locale:'en-US',timezoneId:'America/Los_Angeles',deviceScaleFactor:1,hasTouch:name==='mobile',isMobile:name==='mobile'})
    const errors=[]
    let radarRequests=0
    const sourceTileRequests = new Map()
@@ -118,13 +118,41 @@ try{
      throw Error('Viewport-wide animated CRT beam is still present: '+JSON.stringify(scanline))
    }
    const input=page.locator('footer input').last()
+   const terminalInput = await input.evaluate(el => ({
+     focused: document.activeElement === el,
+     size: parseFloat(getComputedStyle(el).fontSize),
+     spellcheck: el.spellcheck,
+     autocorrect: el.getAttribute('autocorrect'),
+     autocapitalize: el.getAttribute('autocapitalize'),
+     autocomplete: el.getAttribute('autocomplete')
+   }))
+   if(terminalInput.size<16 || terminalInput.spellcheck || terminalInput.autocorrect!=='off' ||
+      terminalInput.autocapitalize!=='none' || terminalInput.autocomplete!=='off' ||
+      (name==='mobile' && terminalInput.focused)) {
+     throw Error('Terminal input should not auto-edit text or focus/zoom on touch devices: '+JSON.stringify(terminalInput))
+   }
    await input.fill('traffic Seattle')
    await input.press('Enter')
    await page.getByText('LIVE TRAFFIC SIGNAL').waitFor({timeout:35000})
    await page.waitForSelector('.maplibregl-canvas',{timeout:25000})
    await page.waitForFunction(()=>document.body.innerText.includes('TOMTOM ROADS: LIVE')&&document.body.innerText.includes('WSDOT SENSORS: LIVE'),{timeout:30000})
    await page.waitForTimeout(1500)
-   const card=page.locator('[class*="max-w-2xl"]').last()
+   const card=page.locator('[data-terminal-map-card]')
+   const assertFullWidth = async mode => {
+     const layout = await card.evaluate(el => {
+       const box = el.getBoundingClientRect()
+       const viewport = document.documentElement.clientWidth
+       return { left: box.left, right: viewport-box.right,
+         overflow: document.documentElement.scrollWidth-viewport,
+         contentOverflow: el.scrollWidth-el.clientWidth }
+     })
+     const gutter = name==='mobile' ? 8 : 24
+     if(Math.abs(layout.left-gutter)>2 || Math.abs(layout.right-gutter)>2 ||
+        layout.overflow>2 || layout.contentOverflow>2) {
+       throw Error(mode+' card should fill the viewport inside its expected gutters: '+JSON.stringify(layout))
+     }
+   }
+   await assertFullWidth('traffic')
    const info=await card.evaluate(el=>({
      text:el.innerText.slice(0,600),
      width:Math.round(el.getBoundingClientRect().width),
@@ -143,6 +171,7 @@ try{
    await input.fill('weather Seattle')
    await input.press('Enter')
    await page.getByText('LIVE RADAR SIGNAL').waitFor({timeout:30000})
+   await assertFullWidth('weather')
    if(await page.getByText('LIVE TRAFFIC SIGNAL').count())throw Error('Traffic-only header survived weather switch')
    const timeline=page.getByRole('group',{name:'Radar timeline'})
    await timeline.waitFor({timeout:15000})
@@ -263,15 +292,18 @@ try{
    }))
    await input.fill('nowplaying')
    await input.press('Enter')
-   await page.getByText('[SPOTIFY] Spotify authorization expired. Site owner: run spotify connect to reconnect.').waitFor({timeout:5000})
+   await page.getByText('[SPOTIFY] Spotify authorization expired. Site owner: run spotify --connect to reconnect.').waitFor({timeout:5000})
    if(await page.locator('.spotify-card').count()) {
      throw Error('Nowplaying rendered stale Spotify card after auth expiry')
    }
    // The owner-only renewal UI is reachable from the actual terminal,
    // without placing credentials in a URL or exposing any token on the page.
-   await input.fill('spotify connect')
-   await input.press('Enter')
-   await page.getByRole('heading', { name: 'Reconnect nowplaying' }).waitFor({timeout:10000})
+   for(const [index, command] of ['spotify --connect','spotify —connect','spotify connect'].entries()){
+     if(index>0) await page.goBack()
+     await input.fill(command)
+     await input.press('Enter')
+     await page.getByRole('heading', { name: 'Reconnect nowplaying' }).waitFor({timeout:10000})
+   }
    const renewalForm=page.locator('form[action="/api/spotify/connect"]')
    if(await renewalForm.count()!==1 ||
       await renewalForm.locator('input').count()!==0 ||
@@ -285,4 +317,5 @@ try{
  writeFileSync('preview-output/traffic-browser-report.json',JSON.stringify(summaries,null,2))
  console.log('TRAFFIC_BROWSER_REPORT '+JSON.stringify(summaries))
 } finally {if(browser)await browser.close();child.kill()}
+
 

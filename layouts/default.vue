@@ -28,8 +28,8 @@
     <!-- Whole-footer opacity makes the page bleed through an otherwise opaque card.
          Keep the terminal footer translucent only when no weather/traffic card is open. -->
     <footer
-      class="sticky bottom-0 z-50 backdrop-blur-md border-t border-terminal-amber-dim p-4 w-full flex flex-col gap-2 text-sm md:text-base"
-      :class="weatherData ? 'bg-terminal-black opacity-100' : 'bg-terminal-black/95 opacity-95'"
+      class="sticky bottom-0 z-50 backdrop-blur-md border-t border-terminal-amber-dim py-4 w-full flex flex-col gap-2 text-sm md:text-base"
+      :class="weatherData ? 'bg-terminal-black opacity-100 px-2 sm:px-4 lg:px-6' : 'bg-terminal-black/95 opacity-95 px-4'"
     >
       <!-- Spotify card output -->
       <div v-if="spotifyData && !spotifyData.error" class="w-full pb-2 mb-2 border-b border-terminal-amber-dim/20 flex justify-center">
@@ -37,7 +37,7 @@
       </div>
 
       <!-- Weather card output -->
-      <div v-else-if="weatherData" class="w-full pb-2 mb-2 border-b border-terminal-amber-dim/20 flex justify-center">
+      <div v-else-if="weatherData" class="w-full min-w-0 pb-2 mb-2 border-b border-terminal-amber-dim/20 flex justify-center">
         <WeatherCard :weatherData="weatherData" :mode="activeCardMode" @close="clearScreen" />
       </div>
 
@@ -58,12 +58,16 @@
       <div class="flex gap-3 items-center w-full">
         <span class="text-terminal-blue font-bold tracking-widest whitespace-nowrap shrink-0">{{ cmdState === 'draft_password' ? 'PASSWORD >' : '~ $' }}</span>
         <input 
+          ref="terminalInput"
           v-model="cmdInput" 
           @keydown.enter="handleCommand"
           :type="cmdState === 'draft_password' ? 'password' : 'text'" 
-          class="bg-transparent border-none outline-none text-terminal-amber w-full font-mono placeholder:text-terminal-amber-dim placeholder:opacity-40 focus:ring-0 lowercase" 
+          class="bg-transparent border-none outline-none text-terminal-amber w-full min-w-0 text-base font-mono placeholder:text-terminal-amber-dim placeholder:opacity-40 focus:ring-0 lowercase"
           :placeholder="cmdState === 'draft_password' ? '...' : 'type command (e.g. cd projects)'"
-          autofocus
+          spellcheck="false"
+          autocorrect="off"
+          autocapitalize="none"
+          autocomplete="off"
         />
       </div>
     </footer>
@@ -71,10 +75,19 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { WMO_CODES } from '~/utils/weatherCodes'
 
+const terminalInput = ref<HTMLInputElement | null>(null)
+onMounted(() => {
+  // Preserve the desktop keyboard shortcut without opening a touch keyboard
+  // or jumping to the sticky footer on phones and tablets.
+  if (navigator.maxTouchPoints === 0 &&
+      window.matchMedia('(hover: hover) and (pointer: fine)').matches) {
+    terminalInput.value?.focus({ preventScroll: true })
+  }
+})
 const cmdInput = ref('')
 const cmdOutput = ref('')
 const router = useRouter()
@@ -97,7 +110,7 @@ async function fetchSpotify () {
     const data = await $fetch<any>('/api/spotify')
     if (data?.error) {
       spotifyData.value = null
-      cmdOutput.value = '[SPOTIFY] ' + data.error
+      cmdOutput.value = '[SPOTIFY] ' + String(data.error).replace('spotify connect', 'spotify --connect')
       return
     }
     spotifyData.value = data
@@ -118,7 +131,7 @@ function startSpotifyPolling () {
       if (fresh?.error) {
         // An expired authorization must not leave a stale "now playing" card.
         spotifyData.value = null
-        cmdOutput.value = '[SPOTIFY] ' + fresh.error
+        cmdOutput.value = '[SPOTIFY] ' + String(fresh.error).replace('spotify connect', 'spotify --connect')
         stopSpotifyPolling()
         return
       }
@@ -189,7 +202,7 @@ const handleCommand = () => {
       clear: 'NAME\n    clear - clear the terminal screen\nSYNOPSIS\n    clear\nDESCRIPTION\n    Clears all previous command outputs and active cards (Spotify, Weather, Games).',
       date: 'NAME\n    date - print current system date\nSYNOPSIS\n    date\nDESCRIPTION\n    Fetches the actual JS date object representation of the current time locally.',
       nowplaying: 'NAME\n    nowplaying - spotify listener status\nSYNOPSIS\n    nowplaying\nDESCRIPTION\n    Hooks into the server to fetch the exact song Mamoon is currently listening to on Spotify, along with an animated progress bar.',
-      spotify: 'NAME\n    spotify connect - manage the site owner Spotify authorization\nSYNOPSIS\n    spotify connect\nDESCRIPTION\n    Opens the owner-only secure website reconnection form. Only the configured Spotify owner account can reconnect.',
+      spotify: 'NAME\n    spotify --connect - manage the site owner Spotify authorization\nSYNOPSIS\n    spotify --connect\nDESCRIPTION\n    Opens the owner-only secure website reconnection form. Only the configured Spotify owner account can reconnect.',
       chmod: 'NAME\n    chmod - change file modes/themes\nSYNOPSIS\n    chmod\nDESCRIPTION\n    A custom toggle that switches the environment from a dark CRT phosphor theme to a light paper aesthetic.',
       weather: 'NAME\n    weather - get real-time forecast\nSYNOPSIS\n    weather [location]\nDESCRIPTION\n    Contacts Open-Meteo services to pinpoint the exact location and fetch atmospheric temperature readings with ASCII display.',
       traffic: 'NAME\n    traffic - live road-flow and highway-sensor monitor\nSYNOPSIS\n    traffic [location]\nDESCRIPTION\n    Opens a standalone traffic map without precipitation or weather data. Uses available TomTom/WSDOT feeds.',
@@ -206,7 +219,7 @@ const handleCommand = () => {
   }
 
   if (input === 'help') {
-    cmdOutput.value = `Available commands:\n- cd <dir>   : Navigate to directory\n- pwd        : Print working directory\n- ls         : List directories\n- clear      : Clear output\n- date       : Show current date\n- nowplaying : Show currently / last playing track\n- spotify connect : Reauthorize the site owner's Spotify account\n- chmod      : Toggle dark/light mode\n- weather    : Show weather (e.g. weather <city>)\n- traffic    : Show road traffic (e.g. traffic <city>)\n- snake      : Play Snake (desktop only)\n- tetris     : Play Tetris (desktop only)\n- man <cmd>  : Read manual page for command`
+    cmdOutput.value = `Available commands:\n- cd <dir>   : Navigate to directory\n- pwd        : Print working directory\n- ls         : List directories\n- clear      : Clear output\n- date       : Show current date\n- nowplaying : Show currently / last playing track\n- spotify --connect : Reauthorize the site owner's Spotify account\n- chmod      : Toggle dark/light mode\n- weather    : Show weather (e.g. weather <city>)\n- traffic    : Show road traffic (e.g. traffic <city>)\n- snake      : Play Snake (desktop only)\n- tetris     : Play Tetris (desktop only)\n- man <cmd>  : Read manual page for command`
     return
   }
 
@@ -294,7 +307,7 @@ const handleCommand = () => {
     return
   }
 
-  if (input === 'spotify connect') {
+  if (/^spotify\s+(?:--|—)?connect$/.test(input)) {
     router.push('/spotify/connect')
     cmdOutput.value = '[SPOTIFY] Opening owner authorization...'
     return
@@ -363,4 +376,5 @@ const handleCommand = () => {
 
 // Global hotkey listening could be added here if we want to focus the input anytime they type
 </script>
+
 

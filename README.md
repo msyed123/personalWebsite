@@ -114,7 +114,7 @@ untrusted website.
 
 1. Open the public website at the **same canonical HTTPS host** as the configured
    redirect URI.
-2. Type `spotify connect` in the existing terminal, or visit
+2. Type `spotify --connect` in the existing terminal, or visit
    `/spotify/connect` directly.
 3. Select **Sign in with Spotify**. Spotify handles the login on its own site. Select the same Spotify account as before.
 4. The OAuth callback consumes a short-lived, single-use Redis transaction
@@ -158,4 +158,5 @@ Official docs:
 [Spotify redirect rules](https://developer.spotify.com/documentation/web-api/concepts/redirect_uri),
 [Upstash Redis REST API](https://upstash.com/docs/redis/features/restapi),
 [Heroku dyno filesystem](https://devcenter.heroku.com/articles/dyno-isolation).
+
 
