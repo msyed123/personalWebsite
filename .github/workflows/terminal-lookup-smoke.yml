@@ -1,0 +1,25 @@
+name: Terminal weather and traffic live-route smoke
+on:
+  pull_request:
+    paths:
+      - 'layouts/default.vue'
+      - 'server/api/terminal-lookup.get.ts'
+      - 'server/api/traffic/**'
+      - 'tests/smoke-terminal-lookup.mjs'
+      - 'tests/fixtures/mock-terminal-providers.mjs'
+      - '.github/workflows/terminal-lookup-smoke.yml'
+  push:
+    branches: [fix/weather-proxy-and-traffic-diagnostics]
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm install --no-audit --no-fund
+      - run: npm test
+      - run: npm run build
+      - run: node tests/smoke-terminal-lookup.mjs
