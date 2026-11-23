@@ -189,6 +189,7 @@ const handleCommand = () => {
       clear: 'NAME\n    clear - clear the terminal screen\nSYNOPSIS\n    clear\nDESCRIPTION\n    Clears all previous command outputs and active cards (Spotify, Weather, Games).',
       date: 'NAME\n    date - print current system date\nSYNOPSIS\n    date\nDESCRIPTION\n    Fetches the actual JS date object representation of the current time locally.',
       nowplaying: 'NAME\n    nowplaying - spotify listener status\nSYNOPSIS\n    nowplaying\nDESCRIPTION\n    Hooks into the server to fetch the exact song Mamoon is currently listening to on Spotify, along with an animated progress bar.',
+      spotify: 'NAME\n    spotify connect - manage the site owner Spotify authorization\nSYNOPSIS\n    spotify connect\nDESCRIPTION\n    Opens the owner-only secure website reconnection form. Requires the private owner key and a Spotify sign-in.',
       chmod: 'NAME\n    chmod - change file modes/themes\nSYNOPSIS\n    chmod\nDESCRIPTION\n    A custom toggle that switches the environment from a dark CRT phosphor theme to a light paper aesthetic.',
       weather: 'NAME\n    weather - get real-time forecast\nSYNOPSIS\n    weather [location]\nDESCRIPTION\n    Contacts Open-Meteo services to pinpoint the exact location and fetch atmospheric temperature readings with ASCII display.',
       traffic: 'NAME\n    traffic - live road-flow and highway-sensor monitor\nSYNOPSIS\n    traffic [location]\nDESCRIPTION\n    Opens a standalone traffic map without precipitation or weather data. Uses available TomTom/WSDOT feeds.',
@@ -205,7 +206,7 @@ const handleCommand = () => {
   }
 
   if (input === 'help') {
-    cmdOutput.value = `Available commands:\n- cd <dir>   : Navigate to directory\n- pwd        : Print working directory\n- ls         : List directories\n- clear      : Clear output\n- date       : Show current date\n- nowplaying : Show currently / last playing track\n- chmod      : Toggle dark/light mode\n- weather    : Show weather (e.g. weather <city>)\n- traffic    : Show road traffic (e.g. traffic <city>)\n- snake      : Play Snake (desktop only)\n- tetris     : Play Tetris (desktop only)\n- man <cmd>  : Read manual page for command`
+    cmdOutput.value = `Available commands:\n- cd <dir>   : Navigate to directory\n- pwd        : Print working directory\n- ls         : List directories\n- clear      : Clear output\n- date       : Show current date\n- nowplaying : Show currently / last playing track\n- spotify connect : Reauthorize the site owner's Spotify account\n- chmod      : Toggle dark/light mode\n- weather    : Show weather (e.g. weather <city>)\n- traffic    : Show road traffic (e.g. traffic <city>)\n- snake      : Play Snake (desktop only)\n- tetris     : Play Tetris (desktop only)\n- man <cmd>  : Read manual page for command`
     return
   }
 
@@ -290,6 +291,12 @@ const handleCommand = () => {
     } else {
       activeGame.value = 'tetris'
     }
+    return
+  }
+
+  if (input === 'spotify connect') {
+    router.push('/spotify/connect')
+    cmdOutput.value = '[SPOTIFY] Opening owner authorization...'
     return
   }
 
