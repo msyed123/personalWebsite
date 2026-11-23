@@ -144,6 +144,41 @@ try{
      document.querySelector('[aria-label="Radar timeline"]')?.getAttribute('aria-busy') === 'false',
      null, {timeout:20000})
    const weatherCard=page.locator('[class*="max-w-2xl"]').last()
+   // The non-draggable radar map must never render a padded, overflowing GL
+   // surface beside the terminal card. Check both the surface geometry and
+   // compositor containment; overflow:hidden alone was not sufficient.
+   const mapViewport=await weatherCard.locator('.map-crt-effect').evaluate(el=>{
+     const container=el.getBoundingClientRect()
+     const canvasLayer=el.querySelector('.leaflet-gl-layer')?.getBoundingClientRect()
+     const style=getComputedStyle(el)
+     return {
+       viewportWidth:container.width,
+       viewportHeight:container.height,
+       layerWidth:canvasLayer?.width,
+       layerHeight:canvasLayer?.height,
+       layerLeft:canvasLayer?.left,
+       layerRight:canvasLayer?.right,
+       viewportLeft:container.left,
+       viewportRight:container.right,
+       containment:style.contain,
+       clipPath:style.clipPath,
+       filter:style.filter,
+       overflowX:style.overflowX,
+       overflowY:style.overflowY
+     }
+   })
+   if(!mapViewport.layerWidth ||
+      Math.abs(mapViewport.layerWidth-mapViewport.viewportWidth)>4 ||
+      Math.abs(mapViewport.layerHeight-mapViewport.viewportHeight)>4 ||
+      mapViewport.layerLeft<mapViewport.viewportLeft-3 ||
+      mapViewport.layerRight>mapViewport.viewportRight+3) {
+     throw Error('Weather GL canvas extends beyond its viewport: '+JSON.stringify(mapViewport))
+   }
+   if(!mapViewport.containment.includes('paint') || mapViewport.clipPath==='none' ||
+      mapViewport.filter!=='none' ||
+      mapViewport.overflowX!=='hidden' || mapViewport.overflowY!=='hidden') {
+     throw Error('Weather viewport does not safely clip WebGL rendering: '+JSON.stringify(mapViewport))
+   }
    await weatherCard.screenshot({path:`preview-output/weather-timeline-${name}.png`})
    await page.getByRole('button',{name:'Next radar frame'}).click()
    await page.waitForFunction(() => document.querySelector('input[aria-label="Scrub radar timeline"]')?.value==='0')
