@@ -267,6 +267,17 @@ try{
    if(await page.locator('.spotify-card').count()) {
      throw Error('Nowplaying rendered stale Spotify card after auth expiry')
    }
+   // The owner-only renewal UI is reachable from the actual terminal,
+   // without placing credentials in a URL or exposing any token on the page.
+   await input.fill('spotify connect')
+   await input.press('Enter')
+   await page.getByRole('heading', { name: 'Reconnect nowplaying' }).waitFor({timeout:10000})
+   const renewalForm=page.locator('form[action="/api/spotify/connect"]')
+   if(await renewalForm.count()!==1 ||
+      await renewalForm.locator('input[name="adminSecret"]').getAttribute('type')!=='password' ||
+      await renewalForm.getAttribute('method')!=='POST') {
+     throw Error('Secure Spotify renewal form is missing')
+   }
    if(errors.length)throw Error('Browser errors: '+JSON.stringify(errors))
    await page.close()
  }
