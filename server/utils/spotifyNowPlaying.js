@@ -4,7 +4,7 @@ const problem = (code, error) => ({ code, error })
 
 const unauthorized = problem(
   'REAUTHORIZE',
-  'Spotify authorization expired. The site owner must reconnect Spotify.'
+  'Spotify authorization expired. Site owner: run spotify connect to reconnect.'
 )
 
 const unavailable = problem(
