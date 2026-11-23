@@ -35,8 +35,9 @@ export function normalizeRoadFeature(feature, retrievedAt = null) {
 
 export function parseWsdotTime(value) {
   if (typeof value !== 'string') return null
-  const match = /^\\/Date\\((-?\\d+)/.exec(value)
-  const date = new Date(match ? Number(match[1]) : value)
+  // WSDOT JSON uses Microsoft's /Date(milliseconds-offset)/ format.
+  const milliseconds = value.startsWith('/Date(') ? Number.parseInt(value.slice(6), 10) : NaN
+  const date = new Date(Number.isFinite(milliseconds) ? milliseconds : value)
   return Number.isFinite(date.getTime()) ? date.toISOString() : null
 }
 
