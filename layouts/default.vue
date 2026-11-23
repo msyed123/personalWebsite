@@ -223,7 +223,7 @@ const handleCommand = () => {
         const mapLocation = {
           lat: latitude,
           lon: longitude,
-          location: `${name}, ${admin1 || country_code || ''}`.replace(/,\\s*$/, '')
+          location: `${name}, ${admin1 || country_code || ''}`.replace(/,\s*$/, '')
         }
         if (isTrafficCommand) {
           activeCardMode.value = 'traffic'
