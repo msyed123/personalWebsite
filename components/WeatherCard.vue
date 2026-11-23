@@ -338,7 +338,11 @@ onMounted(async () => {
     const baseMap = maplibreGL({
     style: 'https://tiles.openfreemap.org/styles/dark',
     interactive: false,
-    attributionControl: false
+    attributionControl: false,
+    // The bridge normally draws a 20%-oversized canvas for panning. Weather
+    // mode does not pan, so keep its WebGL surface within the map viewport.
+    // Preserve the buffer for the draggable, traffic-only map.
+    padding: trafficOnly.value ? 0.1 : 0
   }).addTo(mapInstance.value);
 
   // The WebGL map has its own label fonts: CSS font-family alone cannot change them.
@@ -490,9 +494,16 @@ onUnmounted(() => {
   outline: 2px solid #00d2ff;
 }
 
-/* Optional styling to make the map match a CRT effect slightly */
+/* Leaflet transforms its panes and MapLibre composites a WebGL canvas.
+   Clip at the viewport's own paint boundary, not only via overflow, to keep
+   precipitation from appearing beside the sticky terminal during animation.
+   Do not filter this ancestor: filtering promotes the entire map to a
+   separate compositing surface on some browsers. */
 .map-crt-effect {
-  filter: contrast(1.1) saturate(1.2);
+  contain: paint;
+  isolation: isolate;
+  clip-path: inset(0);
+  overflow: hidden;
 }
 
 .map-control-bg {
