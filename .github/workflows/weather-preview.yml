@@ -6,6 +6,8 @@ on:
       - feature/openfreemap-live-traffic
     paths:
       - 'pages/__weather-preview.vue'
+      - 'components/WeatherCard.vue'
+      - 'utils/trafficMap.js'
       - '.github/scripts/capture-weather-preview.mjs'
       - '.github/workflows/weather-preview.yml'
   workflow_dispatch:
