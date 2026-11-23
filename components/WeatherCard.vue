@@ -40,10 +40,12 @@
           {{ trafficStatus }}<span v-if="trafficLastUpdate"> · FETCH {{ trafficLastUpdate }}</span>
         </div>
       </div>
-      <div v-if="trafficVisible && (trafficStatus === 'LIVE' || trafficStatus === 'DEGRADED')" class="absolute top-[72px] right-2 z-[999] map-control-bg border border-terminal-amber-dim/40 px-2 py-1 text-[9px] text-terminal-amber-dim">
+      <div v-if="trafficVisible && (trafficStatus === 'LIVE' || trafficStatus === 'DEGRADED')" class="absolute top-[72px] right-2 z-[999] map-control-bg border border-terminal-amber-dim/40 px-2 py-1 text-[9px] text-terminal-amber-dim text-right">
         <span class="text-green-500">●</span> FLOW
         <span class="text-amber-400">●</span> SLOW
         <span class="text-red-500">●</span> JAM
+        <span class="text-gray-300">●</span> CLOSED
+        <div v-if="trafficStationsEnabled" class="opacity-80">SENSOR READINGS: DOTS</div>
       </div>
       <!-- Controls overlays -->
       <div class="absolute bottom-2 left-2 z-[999] flex map-control-bg border border-terminal-amber-dim/50 text-xs text-terminal-amber font-bold">
@@ -60,7 +62,7 @@
       </div>
     </div>
 
-    <div class="text-[10px] sm:text-xs text-terminal-amber-dim/50 flex flex-wrap gap-x-3 justify-between tracking-widest uppercase mt-[-4px]">
+    <div class="text-[10px] sm:text-xs text-terminal-amber-dim/80 flex flex-wrap gap-x-3 justify-between tracking-widest uppercase mt-[-4px]">
       <span>> Source: Rainviewer / Open-Meteo</span>
       <span><a href="https://openfreemap.org/" target="_blank" rel="noopener noreferrer" class="underline">OpenFreeMap</a> © OpenMapTiles / <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer" class="underline">OpenStreetMap</a><template v-if="trafficRoadsEnabled"> / Traffic © <a href="https://www.tomtom.com/" target="_blank" rel="noopener noreferrer" class="underline">TomTom</a></template><template v-if="trafficStationsEnabled"> / <a href="https://wsdot.wa.gov/traffic/api/" target="_blank" rel="noopener noreferrer" class="underline">WSDOT</a></template></span>
     </div>
