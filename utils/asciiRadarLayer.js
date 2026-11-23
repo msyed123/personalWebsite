@@ -1,3 +1,5 @@
+import { createRadarTileCache } from './radarTileCache.js'
+
 // Render the existing pixelated RainViewer precipitation as a MapLibre raster
 // layer INSIDE the vector stack. Roads, road labels and traffic always draw above
 // the radar rather than being washed out by a full-screen Leaflet canvas.
@@ -38,6 +40,13 @@ export function createAsciiRadarLayer({
 
   const tileUrl = frame => scheme + '://tiles/{z}/{x}/{y}?frame=' + frame
 
+  // Rendered 256px ASCII tiles are cached by frame + geographic tile.
+  // A normal 10-13-frame loop can then reuse pixels instead of repeating
+  // external requests and font drawing each time. LRU bounds memory for
+  // zooming/panning; source PNGs are coalesced across neighboring crops.
+  const sourceTileCache = createRadarTileCache(64)
+  const renderedTileCache = createRadarTileCache(256)
+
   const makeCanvas = () => {
     const canvas = document.createElement('canvas')
     canvas.width = canvas.height = 256
@@ -45,72 +54,100 @@ export function createAsciiRadarLayer({
   }
 
   async function fetchTile(request, abortController) {
-    const output = makeCanvas()
-    const ctx = output.getContext('2d')
     const uri = new URL(request.url)
     const parts = uri.pathname.match(/^\/(\d+)\/(\d+)\/(\d+)$/)
     const frame = Number(uri.searchParams.get('frame'))
     if (!parts || !Number.isInteger(frame) || !paths[frame]) {
-      return { data: await createImageBitmap(output) }
+      return { data: await createImageBitmap(makeCanvas()) }
     }
     const [z, x, y] = parts.slice(1).map(Number)
-    if (z < 0 || z > 13 || x < 0 || y < 0 || x >= 2 ** z || y >= 2 ** z) {
-      return { data: await createImageBitmap(output) }
+    if (z < 0 || z > 13 || x < 0 || y < 0 ||
+        x >= 2 ** z || y >= 2 ** z) {
+      return { data: await createImageBitmap(makeCanvas()) }
     }
-    const diff = Math.max(0, z - 7)
-    const scale = 2 ** diff
-    const fetchZ = Math.min(z, 7)
-    const fetchX = Math.floor(x / scale)
-    const fetchY = Math.floor(y / scale)
-    const path = paths[frame]
-    const url = 'https://tilecache.rainviewer.com' + path +
-      '/256/' + fetchZ + '/' + fetchX + '/' + fetchY + '/6/1_1.png'
+
     try {
-      const response = await fetch(url, { signal: abortController?.signal })
-      if (!response.ok || !(response.headers.get('content-type') || '').includes('image')) {
-        return { data: await createImageBitmap(output) }
-      }
-      const image = await createImageBitmap(await response.blob())
-      const scaled = makeCanvas()
-      const off = scaled.getContext('2d', { willReadFrequently: true })
-      off.imageSmoothingEnabled = false
-      if (diff) {
-        const sub = 256 / scale
-        off.drawImage(image, (x % scale) * sub, (y % scale) * sub,
-          sub, sub, 0, 0, 256, 256)
-      } else {
-        off.drawImage(image, 0, 0, 256, 256)
-      }
-      image.close?.()
-      const pixels = off.getImageData(0, 0, 256, 256).data
-      ctx.font = 'bold 6px monospace'
-      ctx.textAlign = 'center'
-      ctx.textBaseline = 'middle'
-      for (let row = 0; row < 256; row += 3) {
-        for (let col = 0; col < 256; col += 3) {
-          const i = (row * 256 + col) * 4
-          const r = pixels[i], g = pixels[i + 1], b = pixels[i + 2]
-          if (pixels[i + 3] <= 15) continue
-          const top = Math.max(r,g,b), low = Math.min(r,g,b)
-          const saturation = top === 0 ? 0 : (top - low) / top
-          const muddy = r > g && g > b && r < 230 && b > 80 && Math.abs(r-g) < 30
-          if (saturation < .1 || muddy) continue
-          let mark = '░'
-          if (r > 190 && g < 150) mark = '█'
-          else if (g > 150) mark = '▓'
-          else if (b > 150) mark = '▒'
-          ctx.fillStyle = 'rgb(' +
-            Math.min(255, r * 1.4) + ',' +
-            Math.min(255, g * 1.4) + ',' +
-            Math.min(255, b * 1.4) + ')'
-          ctx.fillText(mark, col + 1.5, row + 1.5)
+      const key = frame + '/' + z + '/' + x + '/' + y
+      const canvas = await renderedTileCache.load(key, async () => {
+        const diff = Math.max(0, z - 7)
+        const scale = 2 ** diff
+        const fetchZ = Math.min(z, 7)
+        const fetchX = Math.floor(x / scale)
+        const fetchY = Math.floor(y / scale)
+        const url = 'https://tilecache.rainviewer.com' + paths[frame] +
+          '/256/' + fetchZ + '/' + fetchX + '/' + fetchY + '/6/1_1.png'
+
+        const sourceCanvas = await sourceTileCache.load(url, async () => {
+          // Cache the decoded provider tile, not just the HTTP response. At
+          // zoom 11+, multiple cropped ASCII tiles share the same z=7 PNG.
+          // Keep this fetch independent of MapLibre's per-frame cancellation
+          // so a canceled scrub does not poison another frame's cache.
+          const response = await fetch(url, {
+            signal: AbortSignal.timeout(12000)
+          })
+          if (response.status === 204 || response.status === 404) return null
+          if (!response.ok) throw new Error('Radar tile unavailable')
+          if (!(response.headers.get('content-type') || '').includes('image')) {
+            return null
+          }
+          const image = await createImageBitmap(await response.blob())
+          const original = makeCanvas()
+          original.getContext('2d').drawImage(image, 0, 0, 256, 256)
+          image.close?.()
+          return original
+        })
+
+        const output = makeCanvas()
+        if (!sourceCanvas) return output
+        const ctx = output.getContext('2d')
+        const scaled = makeCanvas()
+        const off = scaled.getContext('2d', { willReadFrequently: true })
+        off.imageSmoothingEnabled = false
+        if (diff) {
+          const sub = 256 / scale
+          off.drawImage(sourceCanvas, (x % scale) * sub, (y % scale) * sub,
+            sub, sub, 0, 0, 256, 256)
+        } else {
+          off.drawImage(sourceCanvas, 0, 0, 256, 256)
         }
+        const pixels = off.getImageData(0, 0, 256, 256).data
+        ctx.font = 'bold 6px monospace'
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'middle'
+        for (let row = 0; row < 256; row += 3) {
+          for (let col = 0; col < 256; col += 3) {
+            const i = (row * 256 + col) * 4
+            const r = pixels[i], g = pixels[i + 1], b = pixels[i + 2]
+            if (pixels[i + 3] <= 15) continue
+            const top = Math.max(r, g, b), low = Math.min(r, g, b)
+            const saturation = top === 0 ? 0 : (top - low) / top
+            const muddy = r > g && g > b && r < 230 &&
+              b > 80 && Math.abs(r - g) < 30
+            if (saturation < 0.1 || muddy) continue
+            let mark = '░'
+            if (r > 190 && g < 150) mark = '█'
+            else if (g > 150) mark = '▓'
+            else if (b > 150) mark = '▒'
+            ctx.fillStyle = 'rgb(' +
+              Math.min(255, r * 1.4) + ',' +
+              Math.min(255, g * 1.4) + ',' +
+              Math.min(255, b * 1.4) + ')'
+            ctx.fillText(mark, col + 1.5, row + 1.5)
+          }
+        }
+        return output
+      })
+      if (abortController?.signal?.aborted || disposed) {
+        throw new Error('Radar tile request canceled')
       }
+      // Every MapLibre protocol response needs its own ImageBitmap, but this
+      // clones an already-rendered canvas with NO network fetch or ASCII work.
+      return { data: await createImageBitmap(canvas) }
     } catch (error) {
-      if (abortController?.signal?.aborted) throw error
-      // RainViewer empty/failed tiles should not cover the map with error art.
+      if (abortController?.signal?.aborted || disposed) throw error
+      // Do not cache transient network errors: another iteration can retry.
+      return { data: await createImageBitmap(makeCanvas()) }
     }
-    return { data: await createImageBitmap(output) }
   }
 
   const applyBlend = () => {
@@ -311,6 +348,8 @@ export function createAsciiRadarLayer({
       if (gl.getSource(sourceIds[i])) gl.removeSource(sourceIds[i])
     }
     removeProtocol(scheme)
+    renderedTileCache.clear()
+    sourceTileCache.clear()
     initialized = false
   }
 
