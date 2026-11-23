@@ -51,7 +51,8 @@ try{
  browser=await chromium.launch({headless:true,args:['--no-sandbox','--disable-dev-shm-usage','--use-gl=angle','--use-angle=swiftshader']})
  const summaries=[]
  for(const [name,width,height] of [['desktop',1100,930],['mobile',390,844]]){
-   const page=await browser.newPage({viewport:{width,height},locale:'en-US',timezoneId:'America/Los_Angeles',deviceScaleFactor:1,hasTouch:name==='mobile',isMobile:name==='mobile'})
+   const viewportOptions={viewport:{width,height},locale:'en-US',timezoneId:'America/Los_Angeles',deviceScaleFactor:1,hasTouch:name==='mobile',isMobile:name==='mobile'}
+   const page=await browser.newPage(viewportOptions)
    const errors=[]
    let radarRequests=0
    const sourceTileRequests = new Map()
@@ -298,18 +299,30 @@ try{
    }
    // The owner-only renewal UI is reachable from the actual terminal,
    // without placing credentials in a URL or exposing any token on the page.
-   for(const [index, command] of ['spotify --connect','spotify —connect','spotify connect'].entries()){
-     if(index>0) await page.goBack()
-     await input.fill(command)
-     await input.press('Enter')
-     await page.getByRole('heading', { name: 'Reconnect nowplaying' }).waitFor({timeout:10000})
-   }
-   const renewalForm=page.locator('form[action="/api/spotify/connect"]')
-   if(await renewalForm.count()!==1 ||
-      await renewalForm.locator('input').count()!==0 ||
-      await renewalForm.getByRole('button', { name: 'SIGN IN WITH SPOTIFY' }).count()!==1 ||
-      await renewalForm.getAttribute('method')!=='POST') {
-     throw Error('Secure Spotify renewal form is missing')
+   for(const command of ['spotify --connect','spotify —connect','spotify connect']){
+     // Each spelling starts at the terminal in its own browser context. The
+     // connect page intentionally does not need a terminal or prior history.
+     const aliasPage=await browser.newPage(viewportOptions)
+     aliasPage.on('pageerror',err=>errors.push(String(err.message)))
+     try {
+       await aliasPage.goto(`http://127.0.0.1:${port}/`,{waitUntil:'load',timeout:60000})
+       const aliasInput=aliasPage.getByPlaceholder('type command (e.g. cd projects)')
+       await aliasInput.fill(command)
+       await Promise.all([
+         aliasPage.waitForURL(`http://127.0.0.1:${port}/spotify/connect`,{timeout:10000}),
+         aliasInput.press('Enter')
+       ])
+       await aliasPage.getByRole('heading', { name: 'Reconnect nowplaying' }).waitFor({timeout:10000})
+       const renewalForm=aliasPage.locator('form[action="/api/spotify/connect"]')
+       if(await renewalForm.count()!==1 ||
+          await renewalForm.locator('input').count()!==0 ||
+          await renewalForm.getByRole('button', { name: 'SIGN IN WITH SPOTIFY' }).count()!==1 ||
+          await renewalForm.getAttribute('method')!=='POST') {
+         throw Error('Secure Spotify renewal form is missing for '+command)
+       }
+     } finally {
+       await aliasPage.close()
+     }
    }
    if(errors.length)throw Error('Browser errors: '+JSON.stringify(errors))
    await page.close()
