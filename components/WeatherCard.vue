@@ -264,11 +264,15 @@ onMounted(async () => {
     maxZoom: 13
   }).setView([lat, lon], trafficOnly.value ? 12 : 11); 
 
-  // OpenFreeMap vector base -> traffic lines -> pixelated RainViewer radar.
-  // Traffic is rendered by MapLibre within the basemap; radar remains in Leaflet.
+  // Separate geographic/map, precipitation, and traffic layers.
+  // Traffic MUST render above radar: blue precipitation must never wash out road
+  // colors or WSDOT sensor markers (including when the radar is paused).
   mapInstance.value.createPane('radarPane');
   mapInstance.value.getPane('radarPane').style.zIndex = '450';
   mapInstance.value.getPane('radarPane').style.pointerEvents = 'none';
+  mapInstance.value.createPane('trafficPane');
+  mapInstance.value.getPane('trafficPane').style.zIndex = '550';
+  mapInstance.value.getPane('trafficPane').style.pointerEvents = 'none';
 
   // Vector tiles are public and keyless. The Leaflet bridge preserves the existing GridLayer radar.
   const baseMap = maplibreGL({
@@ -317,7 +321,7 @@ onMounted(async () => {
     const { createTrafficMap } = await import('~/utils/trafficMap.js');
     if (weatherMapDisposed) return;
     trafficController = createTrafficMap({
-      gl,
+      leaflet: L,
       leafletMap: mapInstance.value,
       onStatus: (status) => { trafficStatus.value = status },
       onReady: (ready) => {
