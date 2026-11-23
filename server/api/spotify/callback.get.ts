@@ -3,10 +3,10 @@ import {
   sendRedirect, setHeader, createError
 } from 'h3'
 import {
-  readSpotifyAuthorization, writeSpotifyAuthorization
+  allowSpotifyRenewalAttempt, consumeSpotifyTransaction, readSpotifyAuthorization, renewalStoreReady, writeSpotifyAuthorization
 } from '../../utils/spotifyAuthorizationStore.js'
 import {
-  spotifyAuthorizeAccount, spotifyRedirectUri, validOAuthState
+  isSpotifyOwner, spotifyAuthorizeAccount, spotifyOAuthBrowserCookie, spotifyRedirectUri, spotifyWebRenewalEnabled
 } from '../../utils/spotifyWebAuth.js'
 
 // Only the Spotify-issued authorization code comes through this callback.
@@ -14,21 +14,31 @@ import {
 export default defineEventHandler(async event => {
   setHeader(event, 'Cache-Control', 'no-store, private')
   setHeader(event, 'Referrer-Policy', 'no-referrer')
+  if (!spotifyWebRenewalEnabled() || !renewalStoreReady() ||
+      !process.env.SPOTIFY_CLIENT_ID || !process.env.SPOTIFY_CLIENT_SECRET) {
+    throw createError({ statusCode: 503, statusMessage: 'Spotify owner renewal is not configured' })
+  }
   const redirectUri = spotifyRedirectUri()
   if (getHeader(event, 'host') !== new URL(redirectUri).host) {
     throw createError({ statusCode: 403, statusMessage: 'Forbidden' })
   }
   const query = getQuery(event)
-  const expected = getCookie(event, 'spotify_oauth_state')
-  deleteCookie(event, 'spotify_oauth_state', { path: '/api/spotify/callback' })
-  if (!validOAuthState(query.state, expected)) {
+  const browser = getCookie(event, spotifyOAuthBrowserCookie)
+  const consumed = await consumeSpotifyTransaction(query.state, browser).catch(() => {
+    throw createError({ statusCode: 503, statusMessage: 'Spotify renewal storage unavailable' })
+  })
+  if (!consumed) {
     throw createError({ statusCode: 403, statusMessage: 'Spotify authorization state mismatch' })
   }
+  deleteCookie(event, spotifyOAuthBrowserCookie, { path: '/', secure: true, httpOnly: true, sameSite: 'lax' })
   if (query.error) return sendRedirect(event, '/spotify/connect?status=denied', 303)
   if (typeof query.code !== 'string' || !query.code || query.code.length > 4096) {
     return sendRedirect(event, '/spotify/connect?status=failed', 303)
   }
   try {
+    if (!await allowSpotifyRenewalAttempt('exchange')) {
+      return sendRedirect(event, '/spotify/connect?status=limited', 303)
+    }
     const account = await spotifyAuthorizeAccount({
       code: query.code,
       redirectUri,
@@ -36,11 +46,8 @@ export default defineEventHandler(async event => {
       clientSecret: process.env.SPOTIFY_CLIENT_SECRET
     })
     const prior = await readSpotifyAuthorization()
-    const owner = process.env.SPOTIFY_OWNER_ACCOUNT_ID
-    // The first successful, secret-authenticated link pins this Spotify
-    // account. Subsequent renewals cannot replace it with another account.
-    if ((owner && owner !== account.accountId) ||
-        (prior?.accountId && prior.accountId !== account.accountId)) {
+    // A deployment pin must match even on an empty store.
+    if (!isSpotifyOwner(account.accountId, prior?.accountId)) {
       return sendRedirect(event, '/spotify/connect?status=wrong-account', 303)
     }
     await writeSpotifyAuthorization(account)
@@ -50,3 +57,4 @@ export default defineEventHandler(async event => {
     return sendRedirect(event, '/spotify/connect?status=failed', 303)
   }
 })
+

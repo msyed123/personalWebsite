@@ -1,5 +1,3 @@
-import { createHash, timingSafeEqual } from 'node:crypto'
-
 // All checks here run on the server. The browser never handles a client secret,
 // access token, refresh token, or Redis credential.
 export function spotifyRedirectUri() {
@@ -13,19 +11,16 @@ export function spotifyRedirectUri() {
   return url.toString()
 }
 
-export function validSpotifyAdminSecret(candidate) {
-  const configured = process.env.SPOTIFY_ADMIN_SECRET
-  if (!configured || configured.length < 32 || typeof candidate !== 'string') return false
-  // Compare fixed-length digests in constant time, including wrong lengths.
-  const left = createHash('sha256').update(candidate).digest()
-  const right = createHash('sha256').update(configured).digest()
-  return timingSafeEqual(left, right)
+export const spotifyOAuthBrowserCookie = '__Host-spotify_oauth_browser'
+
+export function spotifyWebRenewalEnabled() {
+  return process.env.SPOTIFY_WEB_RENEWAL_ENABLED === 'true' &&
+    Boolean(process.env.SPOTIFY_OWNER_ACCOUNT_ID?.trim())
 }
 
-export function validOAuthState(candidate, cookie) {
-  if (typeof candidate !== 'string' || typeof cookie !== 'string' ||
-      !/^[a-f0-9]{64}$/.test(candidate) || !/^[a-f0-9]{64}$/.test(cookie)) return false
-  return timingSafeEqual(Buffer.from(candidate), Buffer.from(cookie))
+export function isSpotifyOwner(accountId, priorAccountId) {
+  const owner = process.env.SPOTIFY_OWNER_ACCOUNT_ID
+  return Boolean(owner && accountId === owner && (!priorAccountId || priorAccountId === owner))
 }
 
 export function spotifyAuthorizeUrl({ state, redirectUri, clientId }) {
@@ -73,3 +68,4 @@ export async function spotifyAuthorizeAccount({
   }
   return { refreshToken: data.refresh_token, accountId: profile.account_id }
 }
+

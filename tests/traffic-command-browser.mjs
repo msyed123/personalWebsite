@@ -274,7 +274,8 @@ try{
    await page.getByRole('heading', { name: 'Reconnect nowplaying' }).waitFor({timeout:10000})
    const renewalForm=page.locator('form[action="/api/spotify/connect"]')
    if(await renewalForm.count()!==1 ||
-      await renewalForm.locator('input[name="adminSecret"]').getAttribute('type')!=='password' ||
+      await renewalForm.locator('input').count()!==0 ||
+      await renewalForm.getByRole('button', { name: 'SIGN IN WITH SPOTIFY' }).count()!==1 ||
       await renewalForm.getAttribute('method')!=='POST') {
      throw Error('Secure Spotify renewal form is missing')
    }
@@ -284,3 +285,4 @@ try{
  writeFileSync('preview-output/traffic-browser-report.json',JSON.stringify(summaries,null,2))
  console.log('TRAFFIC_BROWSER_REPORT '+JSON.stringify(summaries))
 } finally {if(browser)await browser.close();child.kill()}
+

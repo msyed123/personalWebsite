@@ -4,6 +4,7 @@
 import { createServer } from 'node:http'
 import { randomBytes } from 'node:crypto'
 
+const accountIdOnly = process.argv.includes('--account-id-only')
 const clientId = process.env.SPOTIFY_CLIENT_ID
 const clientSecret = process.env.SPOTIFY_CLIENT_SECRET
 const redirectUri = process.env.SPOTIFY_REDIRECT_URI || 'http://127.0.0.1:8888/callback'
@@ -26,7 +27,7 @@ authUrl.search = new URLSearchParams({
   client_id: clientId,
   response_type: 'code',
   redirect_uri: redirectUri,
-  scope: 'user-read-currently-playing user-read-recently-played',
+  scope: accountIdOnly ? 'user-read-private' : 'user-read-currently-playing user-read-recently-played',
   state,
   show_dialog: 'true'
 }).toString()
@@ -64,20 +65,38 @@ const server = createServer(async (req, res) => {
         grant_type: 'authorization_code',
         code,
         redirect_uri: redirectUri
-      })
+      }),
+      signal: AbortSignal.timeout(15000)
     })
     const json = await response.json()
-    if (!response.ok || !json.refresh_token) {
-      throw new Error('Spotify did not issue a refresh token (HTTP ' + response.status + ')')
+    if (!response.ok || (accountIdOnly ? !json.access_token : !json.refresh_token)) {
+      throw new Error('Spotify authorization exchange failed (HTTP ' + response.status + ')')
+    }
+    let accountId
+    if (accountIdOnly) {
+      const profileResponse = await fetch('https://api.spotify.com/v1/me', {
+        headers: { Authorization: 'Bearer ' + json.access_token },
+        signal: AbortSignal.timeout(15000)
+      })
+      if (!profileResponse.ok) throw new Error('Unable to verify Spotify account')
+      const profile = await profileResponse.json()
+      if (typeof profile?.account_id !== 'string' || !profile.account_id) {
+        throw new Error('Spotify did not return immutable account_id')
+      }
+      accountId = profile.account_id
     }
     res.writeHead(200, {
       'Content-Type': 'text/plain; charset=utf-8',
       'Cache-Control': 'no-store'
     })
-    res.end('Spotify reauthorized. Close this tab and return to your local terminal.')
-    console.log('\nNEW SPOTIFY_REFRESH_TOKEN (keep private):\n' + json.refresh_token)
-    console.log('\nReplace SPOTIFY_REFRESH_TOKEN in your Heroku app Config Vars and redeploy/restart.')
-    console.log('This authorization is valid for six months. Do not commit this token.')
+    res.end('Spotify authorization checked. Close this tab and return to your local terminal.')
+    if (accountIdOnly) {
+      console.log('SPOTIFY_OWNER_ACCOUNT_ID=' + accountId)
+    } else {
+      console.log('\nNEW SPOTIFY_REFRESH_TOKEN (keep private):\n' + json.refresh_token)
+      console.log('\nReplace SPOTIFY_REFRESH_TOKEN in your Heroku app Config Vars and redeploy/restart.')
+      console.log('This authorization is valid for six months. Do not commit this token.')
+    }
   } catch (error) {
     res.writeHead(400, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' })
     res.end('Authorization failed. See the local terminal.')
@@ -95,7 +114,8 @@ server.listen(Number(redirect.port), '127.0.0.1', () => {
   console.log('Register this exact callback in your Spotify app settings: ' + redirectUri)
   console.log('\nOpen the following Spotify login URL in a browser on THIS computer:\n')
   console.log(authUrl.toString())
-  console.log('\nAfter approving, the new token is printed here, not in your browser.')
+  console.log(accountIdOnly ? '\nAfter approving, only the account ID is printed; no token.' :
+    '\nAfter approving, the new token is printed here, not in your browser.')
 })
 setTimeout(() => {
   if (!finished) {
@@ -103,3 +123,4 @@ setTimeout(() => {
     server.close()
   }
 }, 10 * 60 * 1000).unref()
+

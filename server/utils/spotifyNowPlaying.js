@@ -59,7 +59,8 @@ export async function getSpotifyNowPlaying({
       body: new URLSearchParams({
         grant_type: 'refresh_token',
         refresh_token: refreshToken
-      }).toString()
+      }).toString(),
+      signal: AbortSignal.timeout(10000)
     })
     const tokenData = await readJson(grant)
     if (!grant.ok) {
@@ -80,7 +81,7 @@ export async function getSpotifyNowPlaying({
     }
 
     const headers = { Authorization: 'Bearer ' + tokenData.access_token }
-    const current = await request('https://api.spotify.com/v1/me/player/currently-playing', { headers })
+    const current = await request('https://api.spotify.com/v1/me/player/currently-playing', { headers, signal: AbortSignal.timeout(10000) })
     if (current.status !== 204 && !current.ok) return apiProblem(current.status)
     if (current.status === 200) {
       const data = await readJson(current)
@@ -90,7 +91,7 @@ export async function getSpotifyNowPlaying({
     }
 
     // No track currently playing (or an episode): show the latest played track.
-    const recent = await request('https://api.spotify.com/v1/me/player/recently-played?limit=1', { headers })
+    const recent = await request('https://api.spotify.com/v1/me/player/recently-played?limit=1', { headers, signal: AbortSignal.timeout(10000) })
     if (!recent.ok) return apiProblem(recent.status)
     const history = await readJson(recent)
     const track = history?.items?.[0]?.track
@@ -101,3 +102,4 @@ export async function getSpotifyNowPlaying({
     return unavailable
   }
 }
+

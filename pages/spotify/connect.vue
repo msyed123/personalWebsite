@@ -22,26 +22,24 @@
       class="border border-terminal-amber-dim text-sm p-3 mb-5">
       Spotify authorization was canceled. No token was changed.
     </div>
+    <div v-else-if="status === 'limited'" role="alert"
+      class="border border-red-500 text-red-400 text-sm p-3 mb-5">
+      Too many reconnection attempts. Try again in a few minutes.
+    </div>
     <div v-else-if="status === 'failed'" role="alert"
       class="border border-red-500 text-red-400 text-sm p-3 mb-5">
       Reconnection did not complete. No new token was saved. Check the Spotify
       redirect URI and server-side storage configuration.
     </div>
 
-    <form method="POST" action="/api/spotify/connect" autocomplete="off" class="flex flex-col gap-4">
-      <label class="text-xs tracking-wider" for="spotify-owner-secret">OWNER ACCESS KEY</label>
-      <input id="spotify-owner-secret" name="adminSecret" type="password"
-        minlength="32" required autocomplete="off" spellcheck="false"
-        class="w-full min-w-0 border border-terminal-amber-dim p-3 bg-black text-terminal-amber focus-visible:outline focus-visible:outline-2 focus-visible:outline-terminal-blue"
-        placeholder="Enter your private owner key" />
+    <form method="POST" action="/api/spotify/connect" class="flex flex-col gap-4">
       <button type="submit" class="border border-terminal-blue text-terminal-blue font-bold text-sm px-4 py-3 hover:text-terminal-amber">
         SIGN IN WITH SPOTIFY
       </button>
     </form>
     <p class="mt-5 text-xs leading-relaxed text-terminal-amber-dim">
-      This page requires the owner's private access key and your Spotify login.
-      The key is submitted over HTTPS, is not stored by your browser, and is
-      never included in a URL. No Spotify credentials appear on the public page.
+      Sign in on Spotify. Only the Spotify account configured as the site owner
+      can update the connection. The site never asks for your Spotify password.
     </p>
   </section>
 </template>
@@ -54,3 +52,4 @@ useHead({
   meta: [{ name: 'robots', content: 'noindex, nofollow, noarchive' }]
 })
 </script>
+

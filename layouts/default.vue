@@ -189,7 +189,7 @@ const handleCommand = () => {
       clear: 'NAME\n    clear - clear the terminal screen\nSYNOPSIS\n    clear\nDESCRIPTION\n    Clears all previous command outputs and active cards (Spotify, Weather, Games).',
       date: 'NAME\n    date - print current system date\nSYNOPSIS\n    date\nDESCRIPTION\n    Fetches the actual JS date object representation of the current time locally.',
       nowplaying: 'NAME\n    nowplaying - spotify listener status\nSYNOPSIS\n    nowplaying\nDESCRIPTION\n    Hooks into the server to fetch the exact song Mamoon is currently listening to on Spotify, along with an animated progress bar.',
-      spotify: 'NAME\n    spotify connect - manage the site owner Spotify authorization\nSYNOPSIS\n    spotify connect\nDESCRIPTION\n    Opens the owner-only secure website reconnection form. Requires the private owner key and a Spotify sign-in.',
+      spotify: 'NAME\n    spotify connect - manage the site owner Spotify authorization\nSYNOPSIS\n    spotify connect\nDESCRIPTION\n    Opens the owner-only secure website reconnection form. Only the configured Spotify owner account can reconnect.',
       chmod: 'NAME\n    chmod - change file modes/themes\nSYNOPSIS\n    chmod\nDESCRIPTION\n    A custom toggle that switches the environment from a dark CRT phosphor theme to a light paper aesthetic.',
       weather: 'NAME\n    weather - get real-time forecast\nSYNOPSIS\n    weather [location]\nDESCRIPTION\n    Contacts Open-Meteo services to pinpoint the exact location and fetch atmospheric temperature readings with ASCII display.',
       traffic: 'NAME\n    traffic - live road-flow and highway-sensor monitor\nSYNOPSIS\n    traffic [location]\nDESCRIPTION\n    Opens a standalone traffic map without precipitation or weather data. Uses available TomTom/WSDOT feeds.',
@@ -363,3 +363,4 @@ const handleCommand = () => {
 
 // Global hotkey listening could be added here if we want to focus the input anytime they type
 </script>
+

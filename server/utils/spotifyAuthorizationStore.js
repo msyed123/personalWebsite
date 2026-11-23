@@ -1,4 +1,4 @@
-import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto'
+import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto'
 
 // Persistence is external because Heroku dyno files disappear on restart.
 // Every Redis request is server-to-server; never return the Redis API key or
@@ -102,4 +102,65 @@ export async function writeSpotifyAuthorization({
   const result = await command(['SET', KEY, value], settings, request)
   if (result !== 'OK') throw new Error('Spotify token store unavailable')
   return true
+}
+
+
+// Include both random values in the lookup key. An unrelated browser cannot
+// consume the state by knowing only the value returned by Spotify.
+function transactionKey(state, browser) {
+  if (![state, browser].every(value => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value))) return null
+  const binding = createHash('sha256').update(state + ':' + browser).digest('hex')
+  return KEY + ':transaction:' + binding
+}
+
+export const spotifyTransactionLifetime = 600
+
+export async function beginSpotifyTransaction({ request = fetch } = {}) {
+  const state = randomBytes(32).toString('hex')
+  const browser = randomBytes(32).toString('hex')
+  const result = await command([
+    'SET', transactionKey(state, browser), 'issued', 'NX', 'EX', spotifyTransactionLifetime
+  ], config(), request)
+  if (result !== 'OK') throw new Error('Could not issue Spotify authorization transaction')
+  return { state, browser }
+}
+
+export async function consumeSpotifyTransaction(state, browser, { request = fetch } = {}) {
+  const key = transactionKey(state, browser)
+  if (!key) return false
+  return await command(['GETDEL', key], config(), request) === 'issued'
+}
+
+// Compare the exact encrypted record read before starting the provider request.
+const ROTATE_IF_CURRENT = "if redis.call('GET', KEYS[1]) ~= ARGV[1] then return 0 end redis.call('SET', KEYS[1], ARGV[2]); return 1"
+
+export async function rotateSpotifyAuthorization(snapshot, refreshToken, { request = fetch } = {}) {
+  if (!snapshot || typeof snapshot.revision !== 'string' ||
+      typeof refreshToken !== 'string' || !refreshToken) return false
+  const { accountId, authorizedAt } = snapshot
+  const settings = config()
+  const value = encrypt({ refreshToken, accountId, authorizedAt }, settings)
+  return await command(['EVAL', ROTATE_IF_CURRENT, 1, KEY, snapshot.revision, value], settings, request) === 1
+}
+
+export async function readSpotifyAuthorizationSnapshot({ request = fetch } = {}) {
+  const settings = config()
+  const revision = await command(['GET', KEY], settings, request)
+  if (revision === null) return null
+  if (typeof revision !== 'string') throw new Error('Invalid Spotify token store result')
+  return { ...decrypt(revision, settings), revision }
+}
+
+// Shared ceilings across dynos. No reliance on client-controlled proxy headers.
+// A rejected attempt neither grows the counter nor extends the fixed window.
+const RENEWAL_LIMIT = "local count = tonumber(redis.call('GET', KEYS[1]) or '0'); if count >= tonumber(ARGV[1]) then return 0 end; if redis.call('INCR', KEYS[1]) == 1 then redis.call('EXPIRE', KEYS[1], ARGV[2]) end; return 1"
+const renewalLimits = { start: 30, exchange: 12 }
+
+export async function allowSpotifyRenewalAttempt(stage, { request = fetch } = {}) {
+  if (!Object.hasOwn(renewalLimits, stage)) throw new Error('Invalid Spotify renewal stage')
+  const result = await command([
+    'EVAL', RENEWAL_LIMIT, 1, KEY + ':limit:' + stage,
+    renewalLimits[stage], spotifyTransactionLifetime
+  ], config(), request)
+  return result === 1
 }
