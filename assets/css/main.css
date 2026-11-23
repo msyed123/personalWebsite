@@ -12,7 +12,10 @@
   @apply relative min-h-screen flex flex-col p-4 sm:p-8;
 }
 
-/* CRT Scanline effect */
+/* Static CRT texture only. The former ::before scanline swept down the
+   *entire viewport* every 14 seconds, visible as moving side streaks around
+   the opaque sticky weather footer. It was unrelated to weather/radar tiles.
+   Keep the subtle static texture without any screen-wide moving beam. */
 .scanlines {
   @apply pointer-events-none fixed top-0 left-0 w-full h-full z-50;
   background: linear-gradient(
@@ -23,11 +26,6 @@
     rgba(0, 0, 0, 0.1)
   );
   background-size: 100% 4px;
-}
-
-.scanlines::before {
-  content: "";
-  @apply absolute top-0 left-0 w-full h-[5px] bg-white opacity-10 animate-scanline;
 }
 
 /* Flicker effect */
