@@ -25,7 +25,12 @@
       <slot />
     </main>
     
-    <footer class="sticky bottom-0 z-50 bg-terminal-black/95 backdrop-blur-md border-t border-terminal-amber-dim p-4 w-full flex flex-col gap-2 text-sm md:text-base opacity-95">
+    <!-- Whole-footer opacity makes the page bleed through an otherwise opaque card.
+         Keep the terminal footer translucent only when no weather/traffic card is open. -->
+    <footer
+      class="sticky bottom-0 z-50 backdrop-blur-md border-t border-terminal-amber-dim p-4 w-full flex flex-col gap-2 text-sm md:text-base"
+      :class="weatherData ? 'bg-terminal-black opacity-100' : 'bg-terminal-black/95 opacity-95'"
+    >
       <!-- Spotify card output -->
       <div v-if="spotifyData && !spotifyData.error" class="w-full pb-2 mb-2 border-b border-terminal-amber-dim/20 flex justify-center">
         <SpotifyCard :track="spotifyData" @close="clearScreen" />
