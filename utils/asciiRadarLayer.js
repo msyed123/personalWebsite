@@ -195,6 +195,17 @@ export function createAsciiRadarLayer({
       loadingIndex = incomingIndex
       gl.getSource(sourceIds[slot])?.setTiles([tileUrl(incomingIndex)])
       applyBlend()
+      // Let MapLibre process the source's tile invalidation on a render frame.
+      // Checking isSourceLoaded() synchronously can observe stale readiness
+      // from the previous frame and start fading into missing imagery.
+      await new Promise(resolve => raf(resolve))
+      if (disposed) return false
+      if (pendingIndex !== null) {
+        loadingIncoming = false
+        loadingIndex = null
+        applyBlend()
+        continue
+      }
       const ready = await waitUntilLoaded(sourceIds[slot])
       loadingIncoming = false
       loadingIndex = null
