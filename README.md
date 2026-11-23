@@ -84,6 +84,9 @@ for persistent token storage, encrypted on the server with AES-256-GCM.
      (generate one locally with `openssl rand -hex 32`). Save it in your password
      manager. This private key authorizes the reconnect form; it is **not** your
      Spotify password.
+   - `SPOTIFY_TOKEN_ENCRYPTION_KEY` — a separate stable 64-character hex key
+     (also generate locally with `openssl rand -hex 32`). This encrypts the
+     refresh token before saving to Redis; do not rotate it casually.
    - `SPOTIFY_WEB_REDIRECT_URI` — the exact HTTPS URL on the canonical public
      website: `https://YOUR-SITE-DOMAIN/api/spotify/callback`.
    - Optional: `SPOTIFY_OWNER_ACCOUNT_ID` — the immutable `account_id` from
@@ -131,8 +134,10 @@ tokens without resetting the six-month authorization age.
   Redis Standard token and the encryption inputs.
 - If persistent storage fails or the Spotify authorization expires, the public
   terminal shows a safe diagnostic instead of leaking any credentials.
-- Rotating `SPOTIFY_ADMIN_SECRET` or `SPOTIFY_CLIENT_SECRET` changes the key
-  used to encrypt stored data, so **reconnect after rotating either secret**.
+- You can rotate `SPOTIFY_ADMIN_SECRET` or `SPOTIFY_CLIENT_SECRET` without
+  destroying the stored authorization. Back up `SPOTIFY_TOKEN_ENCRYPTION_KEY`
+  securely: changing or losing it prevents decryption of the existing token
+  until the store is reset by its administrator.
 - If you want to retain the former local workflow as a backup, the helper
   `scripts/spotify-reauthorize.mjs` can still produce a token locally, but
   it is not required for the website renewal flow.
