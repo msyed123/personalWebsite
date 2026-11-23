@@ -258,8 +258,13 @@ onMounted(async () => {
       if (id === 'background' && layer.type === 'background') gl.setPaintProperty(id, 'background-color', '#090c0f');
       if (id === 'water' && layer.type === 'fill') gl.setPaintProperty(id, 'fill-color', '#111e27');
       if (id === 'waterway' && layer.type === 'line') gl.setPaintProperty(id, 'line-color', '#1b3545');
-      if (layer.type === 'line' && /^highway_(major|minor|primary)/.test(id)) {
-        gl.setPaintProperty(id, 'line-color', id.includes('casing') ? '#211c14' : '#59431d');
+      // Neutral basemap roads are context, not traffic observations.
+      // Keep amber for labels/UI; reserve saturated green/amber/red for measured traffic.
+      if (layer.type === 'line' && /^highway_(major|minor|motorway)/.test(id)) {
+        const isCasing = id.includes('casing');
+        const isMinor = id.includes('minor');
+        gl.setPaintProperty(id, 'line-color',
+          isCasing ? '#202830' : (isMinor ? '#29343d' : '#35414a'));
       }
       if (layer.type === 'symbol' && layer.layout?.['text-field']) {
         if (gl.getGlyphs() === null) {
