@@ -3,6 +3,8 @@
 const host = 'https://www.msyed.space'
 const paths = [
   '/api/traffic/status',
+  '/api/terminal-lookup?city=Seattle%26mode=weather',
+  '/api/terminal-lookup?city=Seattle%26mode=traffic',
   '/api/traffic/roads/11/328/715',
   '/api/traffic/roads/11/329/715',
   '/api/traffic/roads/12/656/1430',
@@ -17,7 +19,13 @@ for(const path of paths){
     const item={endpoint:path.split('?')[0],status:r.status,contentType:r.headers.get('content-type'),milliseconds:Date.now()-start}
     try{
       const parsed=JSON.parse(raw)
-      if(path.includes('status')) {
+      if(path.includes('terminal-lookup')) {
+        item.location=parsed?.location || null
+        item.hasForecast=Number.isFinite(parsed?.temp)
+        item.temperature=Number.isFinite(parsed?.temp)?parsed.temp:null
+        item.errorCode=parsed?.statusCode || null
+        item.errorMessage=String(parsed?.statusMessage || '').slice(0,100)
+      } else if(path.includes('status')) {
         item.capabilities={roads:parsed?.roads===true,stations:parsed?.stations===true}
       } else if(parsed?.type==='FeatureCollection' && Array.isArray(parsed.features)){
         const features=parsed.features
