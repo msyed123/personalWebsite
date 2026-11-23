@@ -254,6 +254,31 @@ try{
      sliderMax:await slider.getAttribute('max'),sliderValue:await slider.inputValue(),
      firstPassCDNRequests:loadedOnce,secondPassCDNRequests:afterSecondLoop,
      timelineLayout:afterLoopLayout,...info,pageErrors:errors})
+   // A revoked Spotify refresh token used to silently clear the terminal.
+   // Regress the visible owner-reauthorization message in both viewport sizes.
+   await page.route('**/api/spotify',route=>route.fulfill({
+     status:200,contentType:'application/json',
+     body:JSON.stringify({code:'REAUTHORIZE',
+       error:'Spotify authorization expired. Site owner: run spotify connect to reconnect.'})
+   }))
+   await input.fill('nowplaying')
+   await input.press('Enter')
+   await page.getByText('[SPOTIFY] Spotify authorization expired. Site owner: run spotify connect to reconnect.').waitFor({timeout:5000})
+   if(await page.locator('.spotify-card').count()) {
+     throw Error('Nowplaying rendered stale Spotify card after auth expiry')
+   }
+   // The owner-only renewal UI is reachable from the actual terminal,
+   // without placing credentials in a URL or exposing any token on the page.
+   await input.fill('spotify connect')
+   await input.press('Enter')
+   await page.getByRole('heading', { name: 'Reconnect nowplaying' }).waitFor({timeout:10000})
+   const renewalForm=page.locator('form[action="/api/spotify/connect"]')
+   if(await renewalForm.count()!==1 ||
+      await renewalForm.locator('input[name="adminSecret"]').getAttribute('type')!=='password' ||
+      await renewalForm.getAttribute('method')!=='POST') {
+     throw Error('Secure Spotify renewal form is missing')
+   }
+   if(errors.length)throw Error('Browser errors: '+JSON.stringify(errors))
    await page.close()
  }
  writeFileSync('preview-output/traffic-browser-report.json',JSON.stringify(summaries,null,2))
