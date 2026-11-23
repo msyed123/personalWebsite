@@ -102,7 +102,18 @@ export function createTrafficMap({ gl, leafletMap, onStatus, onReady, onSources,
       const sampled = results.filter((_, i) => requests[i].kind === kind)
       if (!sampled.length) return 'NO DATA'
       const succeeded = sampled.filter(item => item.status === 'fulfilled')
-      if (!succeeded.length) return 'ERROR'
+      if (!succeeded.length) {
+        const reasons = sampled
+          .filter(item => item.status === 'rejected')
+          .map(item => item.reason?.message)
+        if (reasons.includes('AUTHORIZATION')) return 'AUTH ERROR'
+        if (reasons.includes('RATE_LIMIT')) return 'RATE LIMIT'
+        if (reasons.includes('INVALID_TILE_FORMAT')) return 'TILE FORMAT'
+        if (reasons.includes('TIMEOUT')) return 'TIMEOUT'
+        if (reasons.includes('TILE_DECODING_OR_NETWORK')) return 'DECODE/NET'
+        const upstream = reasons.find(value => /^UPSTREAM_HTTP_\\d+$/.test(value || ''))
+        return upstream ? upstream.replace('UPSTREAM_HTTP_', 'HTTP ') : 'ERROR'
+      }
       if (succeeded.length < sampled.length) return 'DEGRADED'
       return succeeded.some(item => item.value.features.length > 0) ? 'LIVE' : 'NO DATA'
     }
@@ -207,7 +218,18 @@ export function createTrafficMap({ gl, leafletMap, onStatus, onReady, onSources,
 }
 
 async function parseCollection(response) {
-  if (!response.ok) throw new Error('Traffic feed unavailable')
+  if (!response.ok) {
+    // Only recognize sanitized error categories emitted by our server.
+    // Do not display arbitrary upstream error messages or credentials.
+    let category = 'ERROR'
+    try {
+      const error = await response.json()
+      const allowed = /^(AUTHORIZATION|RATE_LIMIT|INVALID_TILE_FORMAT|OVERSIZE_TILE|TIMEOUT|TILE_DECODING_OR_NETWORK|UPSTREAM_HTTP_\\d{3})$/
+      const candidate = String(error?.statusMessage || '').replace(/^Road traffic /, '')
+      if (allowed.test(candidate)) category = candidate
+    } catch {}
+    throw new Error(category)
+  }
   const data = await response.json()
   if (data?.type !== 'FeatureCollection' || !Array.isArray(data.features)) {
     throw new Error('Invalid normalized traffic response')
