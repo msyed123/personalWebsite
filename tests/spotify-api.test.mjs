@@ -115,3 +115,19 @@ test('network failures do not disclose raw errors', async () => {
   assert.equal(result.code, 'UPSTREAM')
   assert.doesNotMatch(JSON.stringify(result), /private network credentials/)
 })
+
+test('rotated Spotify refresh token is saved before the next playback request', async () => {
+  const rotations = []
+  const result = await getSpotifyNowPlaying({
+    ...credentials,
+    onRefreshToken: async token => rotations.push(token),
+    request: async url => {
+      if (url.includes('/api/token')) return reply(200, {
+        access_token: 'new-access', refresh_token: 'new-refresh'
+      })
+      return reply(200, { item: track, is_playing: true, progress_ms: 3000 })
+    }
+  })
+  assert.equal(result.songTitle, 'A Track')
+  assert.deepEqual(rotations, ['new-refresh'])
+})
