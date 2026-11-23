@@ -1,9 +1,9 @@
 <template>
-  <div class="font-mono text-sm border border-terminal-amber/30 p-4 max-w-2xl w-full bg-terminal-black/80 shadow-lg relative flex flex-col gap-4 group">
+  <div class="font-mono text-sm border border-terminal-amber/30 p-4 max-w-2xl w-full bg-terminal-black shadow-lg relative flex flex-col gap-4 group">
     <button @click="$emit('close')" class="absolute top-2 right-3 z-[999] text-terminal-amber bg-terminal-black/80 px-2 py-0 border border-terminal-amber-dim hover:text-red-500 hover:border-red-500 transition-colors cursor-pointer">[x]</button>
     
     <!-- Weather Data Top Bar -->
-    <div class="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-2 items-end w-full pt-1 pr-8">
+    <div v-if="!trafficOnly" class="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-2 items-end w-full pt-1 pr-8">
       <div class="flex items-center gap-3 min-w-0">
         <!-- Keep the original ASCII art, but allow long location names to wrap. -->
         <div class="flex-shrink-0 whitespace-pre leading-tight font-bold text-xs" :class="artColor">
@@ -20,13 +20,28 @@
       </div>
     </div>
 
+    <!-- A separate traffic terminal with no weather/radar panel. -->
+    <div v-else class="flex flex-col gap-2 pt-1 pr-8">
+      <span class="text-[11px] tracking-widest text-terminal-amber-dim">LIVE TRAFFIC SIGNAL</span>
+      <div class="text-xl sm:text-2xl font-bold text-terminal-blue break-words">{{ weatherData.location }}</div>
+      <div class="flex flex-wrap justify-between items-center gap-2 text-xs text-terminal-amber-dim">
+        <span>FLOW STATUS: <strong class="text-terminal-amber">{{ trafficStatus }}</strong></span>
+        <button type="button" @click="toggleTraffic" :disabled="!trafficLayerReady"
+          :aria-pressed="trafficVisible"
+          :aria-label="trafficVisible ? 'Turn traffic overlay off' : 'Turn traffic overlay on'"
+          class="border border-terminal-amber-dim/70 px-3 py-1.5 text-terminal-amber focus-visible:outline focus-visible:outline-2 focus-visible:outline-terminal-blue disabled:opacity-50"
+        >TRAFFIC {{ trafficLayerReady ? (trafficVisible ? '[ON]' : '[OFF]') : '[NO FEED]' }}</button>
+      </div>
+    </div>
+
     <!-- Map Container -->
     <div 
       ref="mapContainer" 
-      class="w-full h-72 sm:h-64 border border-terminal-amber-dim/50 bg-terminal-black overflow-hidden map-crt-effect relative"
+      class="w-full border border-terminal-amber-dim/50 bg-terminal-black overflow-hidden map-crt-effect relative"
+      :class="trafficOnly ? 'h-80 sm:h-[26rem]' : 'h-72 sm:h-64'"
     >
       <!-- Explicit, keyboard-accessible traffic toggle. Radar is never affected. -->
-      <div class="absolute top-2 right-2 z-[999] flex flex-col items-end gap-1">
+      <div v-if="!trafficOnly" class="absolute top-2 right-2 z-[999] flex flex-col items-end gap-1">
         <button
           type="button"
           @click="toggleTraffic"
@@ -40,7 +55,7 @@
           {{ trafficStatus }}<span v-if="trafficLastUpdate"> · FETCH {{ trafficLastUpdate }}</span>
         </div>
       </div>
-      <div v-if="trafficVisible && (trafficStatus === 'LIVE' || trafficStatus === 'DEGRADED')" class="hidden sm:block absolute top-[72px] right-2 z-[999] map-control-bg border border-terminal-amber-dim/40 px-2 py-1 text-[9px] text-terminal-amber-dim text-right">
+      <div v-if="!trafficOnly && trafficVisible && (trafficStatus === 'LIVE' || trafficStatus === 'DEGRADED')" class="hidden sm:block absolute top-[72px] right-2 z-[999] map-control-bg border border-terminal-amber-dim/40 px-2 py-1 text-[9px] text-terminal-amber-dim text-right">
         <span class="text-green-500">●</span> FLOW
         <span class="text-amber-400">●</span> SLOW
         <span class="text-red-500">●</span> JAM
@@ -49,12 +64,12 @@
       </div>
       <!-- Controls overlays -->
       <div class="absolute bottom-2 left-2 z-[999] flex map-control-bg border border-terminal-amber-dim/50 text-xs text-terminal-amber font-bold">
-        <button @click="togglePlay" class="hover:text-terminal-blue transition-colors focus:outline-none w-16 text-left px-3 py-1.5">{{ isPlaying ? '|| PAUSE' : '► PLAY' }}</button>
-        <button @click="prevFrame" class="hover:text-terminal-blue transition-colors focus:outline-none px-3 py-1.5">&lt;</button>
-        <button @click="nextFrame" class="hover:text-terminal-blue transition-colors focus:outline-none px-3 py-1.5">&gt;</button>
+        <button v-if="!trafficOnly" @click="togglePlay" class="hover:text-terminal-blue transition-colors focus:outline-none w-16 text-left px-3 py-1.5">{{ isPlaying ? '|| PAUSE' : '► PLAY' }}</button>
+        <button v-if="!trafficOnly" @click="prevFrame" class="hover:text-terminal-blue transition-colors focus:outline-none px-3 py-1.5">&lt;</button>
+        <button v-if="!trafficOnly" @click="nextFrame" class="hover:text-terminal-blue transition-colors focus:outline-none px-3 py-1.5">&gt;</button>
         <div class="border-l border-terminal-amber-dim/50 flex">
-          <button @click="zoomIn" class="hover:text-terminal-blue transition-colors focus:outline-none px-3 py-1.5 border-r border-terminal-amber-dim/50">+</button>
-          <button @click="zoomOut" class="hover:text-terminal-blue transition-colors focus:outline-none px-3 py-1.5">-</button>
+          <button aria-label="Zoom in" @click="zoomIn" class="hover:text-terminal-blue transition-colors focus:outline-none px-3 py-1.5 border-r border-terminal-amber-dim/50">+</button>
+          <button aria-label="Zoom out" @click="zoomOut" class="hover:text-terminal-blue transition-colors focus:outline-none px-3 py-1.5">-</button>
         </div>
       </div>
       <div v-if="timestamps.length > 0" class="absolute bottom-2 right-2 z-[999] map-control-bg px-2 py-1.5 border border-terminal-amber-dim/50 text-xs text-terminal-amber font-bold">
@@ -62,9 +77,23 @@
       </div>
     </div>
 
+    <div v-if="trafficOnly && trafficVisible && trafficLayerReady"
+      class="flex flex-wrap gap-3 text-[10px] text-terminal-amber-dim tracking-wide" aria-label="Traffic legend">
+      <span><span class="text-green-500">●</span> FLOW</span>
+      <span><span class="text-amber-400">●</span> SLOW</span>
+      <span><span class="text-red-500">●</span> JAM</span>
+      <span><span class="text-gray-300">●</span> CLOSED</span>
+      <span v-if="trafficStationsEnabled">SENSORS: DOTS</span>
+    </div>
+    <div v-if="trafficOnly" class="flex flex-wrap gap-3 text-[10px] text-terminal-amber-dim">
+      <span>TOMTOM ROADS: {{ trafficRoadHealth }}</span>
+      <span>WSDOT SENSORS: {{ trafficStationHealth }}</span>
+      <span v-if="trafficLastUpdate">LATEST FETCH: {{ trafficLastUpdate }}</span>
+    </div>
+
     <!-- On phones, keep the traffic legend outside the map viewport. -->
     <div
-      v-if="trafficVisible && (trafficStatus === 'LIVE' || trafficStatus === 'DEGRADED')"
+      v-if="!trafficOnly && trafficVisible && (trafficStatus === 'LIVE' || trafficStatus === 'DEGRADED')"
       class="sm:hidden flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-terminal-amber-dim tracking-wide"
       aria-label="Traffic legend"
     >
@@ -76,7 +105,8 @@
     </div>
 
     <div class="text-[10px] sm:text-xs text-terminal-amber-dim/80 flex flex-wrap gap-x-3 justify-between tracking-widest uppercase mt-[-4px]">
-      <span>> Source: Rainviewer / Open-Meteo</span>
+      <span v-if="!trafficOnly">> Source: Rainviewer / Open-Meteo</span>
+      <span v-else>> Source: Road flow / highway sensors</span>
       <span><a href="https://openfreemap.org/" target="_blank" rel="noopener noreferrer" class="underline">OpenFreeMap</a> © OpenMapTiles / <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer" class="underline">OpenStreetMap</a><template v-if="trafficRoadsEnabled"> / Traffic © <a href="https://www.tomtom.com/" target="_blank" rel="noopener noreferrer" class="underline">TomTom</a></template><template v-if="trafficStationsEnabled"> / <a href="https://wsdot.wa.gov/traffic/api/" target="_blank" rel="noopener noreferrer" class="underline">WSDOT</a></template></span>
     </div>
   </div>
@@ -89,10 +119,16 @@ const props = defineProps({
   weatherData: {
     type: Object,
     required: true
+  },
+  mode: {
+    type: String,
+    default: 'weather',
+    validator: value => ['weather','traffic'].includes(value)
   }
 })
 
 defineEmits(['close'])
+const trafficOnly = computed(() => props.mode === 'traffic')
 
 const artColor = computed(() => {
   const code = props.weatherData.code;
@@ -130,6 +166,8 @@ const trafficLayerReady = ref(false)
 const trafficRoadsEnabled = ref(false)
 const trafficStationsEnabled = ref(false)
 const trafficLastUpdate = ref('')
+const trafficRoadHealth = ref('OFFLINE')
+const trafficStationHealth = ref('OFFLINE')
 let trafficController = null
 let weatherMapDisposed = false
 let animationInterval = null
@@ -216,15 +254,15 @@ onMounted(async () => {
   mapInstance.value = L.map(mapContainer.value, {
     zoomControl: false,
     attributionControl: false,
-    dragging: false,
-    touchZoom: false,
-    doubleClickZoom: false,
+    dragging: trafficOnly.value,
+    touchZoom: trafficOnly.value,
+    doubleClickZoom: trafficOnly.value,
     scrollWheelZoom: false,
     boxZoom: false,
     keyboard: false,
     minZoom: 4,
     maxZoom: 13
-  }).setView([lat, lon], 11); 
+  }).setView([lat, lon], trafficOnly.value ? 12 : 11); 
 
   // OpenFreeMap vector base -> traffic lines -> pixelated RainViewer radar.
   // Traffic is rendered by MapLibre within the basemap; radar remains in Leaflet.
@@ -291,6 +329,10 @@ onMounted(async () => {
         trafficRoadsEnabled.value = roads;
         trafficStationsEnabled.value = stations;
       },
+      onHealth: ({ roads, stations }) => {
+        trafficRoadHealth.value = roads;
+        trafficStationHealth.value = stations;
+      },
       onUpdate: (iso) => {
         trafficLastUpdate.value = iso
           ? new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
@@ -300,6 +342,7 @@ onMounted(async () => {
     trafficController.start();
   });
 
+  if (!trafficOnly.value) {
   // Define the custom ASCII Canvas GridLayer
   const AsciiRadarLayer = L.GridLayer.extend({
     createTile: function(coords, done) {
@@ -465,6 +508,7 @@ onMounted(async () => {
     }
   } catch (e) {
     console.error("[RADAR] Rainviewer fetch failed", e)
+  }
   }
 })
 
