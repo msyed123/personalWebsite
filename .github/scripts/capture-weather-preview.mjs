@@ -19,9 +19,9 @@ function makeRadarTile(frame = 0) {
     for (let x = 0; x < 256; x++) {
       const i = (y * 256 + x) * 4
       const shift = frame * 2.2
-      const northBand = 152 + 0.37 * (x - 125) + 11 * Math.sin(x / 14 + frame / 4) + shift
-      const southBand = 204 - 0.18 * (x - 165) + 10 * Math.sin(x / 16) - shift
-      const thickness = 12 + 3 * Math.sin(x / 21)
+      const northBand = 175 + 0.28 * (x - 125) + 5 * Math.sin(x / 14 + frame / 4) + shift
+      const southBand = 194 - 0.18 * (x - 165) + 5 * Math.sin(x / 16) - shift
+      const thickness = 13 + 3 * Math.sin(x / 21)
       const inNorth = Math.abs(y - northBand) < thickness
       const inSouth = Math.abs(y - southBand) < 12
       const noise = ((x * 31 + y * 17 + (x * y) % 47 + frame * 29) % 100) / 100
@@ -72,6 +72,7 @@ const messages = []
 page.on('console', msg => { if (msg.type()==='error') messages.push('console: '+msg.text()) })
 page.on('pageerror', err => messages.push('pageerror: '+err.message))
 page.on('requestfailed', req => messages.push('requestfailed: '+req.url()+' '+req.failure()?.errorText))
+let radarRequests = 0
 
 await page.route('**/api/traffic/status', route => route.fulfill({
   status:200,contentType:'application/json',body:JSON.stringify({roads:true,stations:true,refreshSeconds:180})
@@ -99,6 +100,7 @@ await page.route('https://api.rainviewer.com/public/weather-maps.json', route =>
   body:JSON.stringify({radar:{past:times.map((time,i)=>({time,path:`/v2/radar/fixture-${i}`}))}})
 }))
 await page.route('https://tilecache.rainviewer.com/**', route => {
+  radarRequests++
   const index = Number(route.request().url().match(/fixture-(\\d+)/)?.[1] || 0)
   return route.fulfill({status:200,contentType:'image/png',body:rainTiles[index] ?? rainTiles[0]})
 })
@@ -118,7 +120,22 @@ for (let i = 0; i < pixels.data.length; i += 4) {
   const r = pixels.data[i], g = pixels.data[i + 1], b = pixels.data[i + 2]
   if (b > 125 && b > r * 1.6 && g > r * 1.5) radarPixelCount++
 }
-if (radarPixelCount < 300) throw new Error('Fake radar did not visibly render in screenshot: '+radarPixelCount)
+const mapPixels = (() => {
+  let count = 0
+  const minY = Math.floor(pixels.height * 0.27)
+  const maxY = Math.floor(pixels.height * 0.82)
+  for (let y = minY; y < maxY; y++) {
+    for (let x = 35; x < pixels.width - 35; x++) {
+      const i = (y * pixels.width + x) * 4
+      const r = pixels.data[i], g = pixels.data[i + 1], b = pixels.data[i + 2]
+      if (b > 165 && g > 130 && b > r * 1.7) count++
+    }
+  }
+  return count
+})()
+console.log('Map cyan pixels:', mapPixels, 'radar requests:', radarRequests)
+if (!radarRequests) throw new Error('Radar tile endpoint was never requested')
+if (mapPixels < 1000) throw new Error('Radar not visibly present inside map: '+mapPixels)
 console.log('Radar pixels visible:', radarPixelCount)
 await page.screenshot({path:path.join(outputDir,'weather-preview-context.png'),fullPage:true})
 const trafficButton = page.getByRole('button',{name:'Turn traffic overlay off'})
