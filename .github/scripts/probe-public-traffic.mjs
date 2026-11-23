@@ -5,6 +5,7 @@ const paths = [
   '/api/traffic/status',
   '/api/traffic/roads/11/328/715',
   '/api/traffic/roads/11/329/715',
+  '/api/traffic/roads/12/656/1430',
   '/api/traffic/stations?bbox=-122.42%2C47.55%2C-122.25%2C47.68'
 ]
 const report=[]
@@ -38,3 +39,21 @@ for(const path of paths){
   }
 }
 console.log('PROBE_JSON '+JSON.stringify({host,report}))
+
+// Probe Open-Meteo independently from the runner, with a browser-like Origin
+// and with no Origin. Never print credentials.
+const forecastURL='https://api.open-meteo.com/v1/forecast?latitude=47.60621&longitude=-122.33207&current=temperature_2m,weather_code&temperature_unit=fahrenheit&wind_speed_unit=mph'
+const geoURL='https://geocoding-api.open-meteo.com/v1/search?name=Seattle&count=1&language=en&format=json'
+for(const [name,url] of [['forecast',forecastURL],['geocoding',geoURL]]){
+ for(const [label,headers] of [['server',{}],['browserOrigin',{Origin:'https://www.msyed.space'}]]){
+  const start=Date.now()
+  try{
+   const response=await fetch(url,{headers,signal:AbortSignal.timeout(16000)})
+   const body=await response.text()
+   let current
+   try{ const parsed=JSON.parse(body);current=name==='forecast'?{temperature:parsed.current?.temperature_2m,weather_code:parsed.current?.weather_code,error:parsed.error,reason:parsed.reason}:{count:parsed.results?.length,error:parsed.error} }catch{}
+   report.push({endpoint:name,requestMode:label,status:response.status,allowOrigin:response.headers.get('access-control-allow-origin'),contentType:response.headers.get('content-type'),milliseconds:Date.now()-start,parsed:current})
+  }catch(error){ report.push({endpoint:name,requestMode:label,errorName:error.name,errorCause:error.cause?.code || String(error.cause?.message||'').slice(0,100),milliseconds:Date.now()-start}) }
+ }
+}
+console.log('PROBE_WEATHER_TRAFFIC '+JSON.stringify({host,report}))
