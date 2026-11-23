@@ -94,7 +94,12 @@ let spotifyPollTimer: ReturnType<typeof setInterval> | null = null
 
 async function fetchSpotify () {
   try {
-    const data = await $fetch('/api/spotify')
+    const data = await $fetch<any>('/api/spotify')
+    if (data?.error) {
+      spotifyData.value = null
+      cmdOutput.value = '[SPOTIFY] ' + data.error
+      return
+    }
     spotifyData.value = data
     cmdOutput.value = ''
   } catch (e) {
@@ -108,17 +113,18 @@ function startSpotifyPolling () {
   // Poll every 30 seconds to sync real playback state
   spotifyPollTimer = setInterval(async () => {
     if (!spotifyData.value) return stopSpotifyPolling()
-    const prev = spotifyData.value
     try {
       const fresh = await $fetch<any>('/api/spotify')
-      if (fresh && !fresh.error) {
-        // If track changed, full replace; otherwise just update progress + isPlaying
-        if (fresh.songTitle !== prev.songTitle) {
-          spotifyData.value = fresh
-        } else {
-          spotifyData.value = { ...fresh }
-        }
-        // Stop polling if nothing is playing
+      if (fresh?.error) {
+        // An expired authorization must not leave a stale "now playing" card.
+        spotifyData.value = null
+        cmdOutput.value = '[SPOTIFY] ' + fresh.error
+        stopSpotifyPolling()
+        return
+      }
+      if (fresh) {
+        // Sync the displayed track and progress from Spotify.
+        spotifyData.value = { ...fresh }
         if (!fresh.isPlaying) stopSpotifyPolling()
       }
     } catch { /* silently ignore poll errors */ }
