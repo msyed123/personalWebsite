@@ -61,36 +61,36 @@ All source attributions are visible in the widget footer. Labels use the site's 
 Provider API behavior on a live deployment is not guaranteed by unit tests; credentials and an integration smoke test are required before treating the overlay as production-verified.
 
 
-## Spotify \`nowplaying\` — reconnecting after refresh-token expiration
+## Spotify `nowplaying` — reconnecting after refresh-token expiration
 
 Spotify announced on June 18, 2026 that refresh tokens expire **six months from the
 original user authorization**, enforced for existing developer apps starting
 July 20, 2026. Refreshing an *access token* does not extend that period.
-An expired refresh token returns \`400 invalid_grant\` and requires an
+An expired refresh token returns `400 invalid_grant` and requires an
 interactive sign-in. The public website cannot safely initiate owner
 reauthorization for arbitrary visitors.
 
-The \`nowplaying\` terminal now displays a clear, non-sensitive error instead
+The `nowplaying` terminal now displays a clear, non-sensitive error instead
 of silently hiding failed responses. To reconnect **the site owner's account**:
 
 1. In the [Spotify Developer Dashboard](https://developer.spotify.com/dashboard),
    edit the existing app's settings. Add this exact allowed redirect URI:
-   \`http://127.0.0.1:8888/callback\` (loopback IP, **not** \`localhost\`).
+   `http://127.0.0.1:8888/callback` (loopback IP, **not** `localhost`).
    Leave the existing app's Client ID unchanged.
-2. On your own trusted computer, set \`SPOTIFY_CLIENT_ID\` and
-   \`SPOTIFY_CLIENT_SECRET\` as **local environment variables** using the
+2. On your own trusted computer, set `SPOTIFY_CLIENT_ID` and
+   `SPOTIFY_CLIENT_SECRET` as **local environment variables** using the
    values for that same app. Do not put them into the repository or share them.
-   Then run \`node scripts/spotify-reauthorize.mjs\`.
+   Then run `node scripts/spotify-reauthorize.mjs`.
 3. Open the URL printed by the script **on that computer**, sign into
    the Spotify account that should appear on the website, and approve the
-   two read-only scopes: \`user-read-currently-playing\` and
-   \`user-read-recently-played\`.
-4. The script receives the OAuth callback on \`127.0.0.1\` and prints a **new
+   two read-only scopes: `user-read-currently-playing` and
+   `user-read-recently-played`.
+4. The script receives the OAuth callback on `127.0.0.1` and prints a **new
    refresh token in the local terminal only**. In your Heroku application's
-   Settings → Config Vars, replace \`SPOTIFY_REFRESH_TOKEN\` with the new
-   secret and restart/redeploy as needed. Keep \`SPOTIFY_CLIENT_ID\` and
-   \`SPOTIFY_CLIENT_SECRET\` unchanged.
-5. Test \`nowplaying\` again. Repeat this owner-only consent workflow when
+   Settings → Config Vars, replace `SPOTIFY_REFRESH_TOKEN` with the new
+   secret and restart/redeploy as needed. Keep `SPOTIFY_CLIENT_ID` and
+   `SPOTIFY_CLIENT_SECRET` unchanged.
+5. Test `nowplaying` again. Repeat this owner-only consent workflow when
    the six-month authorization expires; never add the Spotify login flow to
    the publicly accessible terminal.
 
