@@ -6,6 +6,8 @@ on:
       - 'layouts/default.vue'
       - 'utils/trafficMap.js'
       - 'tests/traffic-command-browser.mjs'
+      - 'utils/asciiRadarLayer.js'
+      - '.github/workflows/traffic-command-browser.yml'
   push:
     branches: [feature/traffic-command-card]
 jobs:
