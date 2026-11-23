@@ -85,7 +85,7 @@
       <span><span class="text-gray-300">●</span> CLOSED</span>
       <span v-if="trafficStationsEnabled">SENSORS: DOTS</span>
     </div>
-    <div v-if="trafficOnly" class="flex flex-wrap gap-3 text-[10px] text-terminal-amber-dim">
+    <div v-if="trafficLayerReady" class="flex flex-wrap gap-3 text-[10px] text-terminal-amber-dim">
       <span>TOMTOM ROADS: {{ trafficRoadHealth }}</span>
       <span>WSDOT SENSORS: {{ trafficStationHealth }}</span>
       <span v-if="trafficLastUpdate">LATEST FETCH: {{ trafficLastUpdate }}</span>
