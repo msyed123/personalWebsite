@@ -109,6 +109,7 @@ const trafficVisible = ref(false)
 const trafficLayerReady = ref(false)
 let trafficLayer = null
 let trafficRefreshInterval = null
+let weatherMapDisposed = false
 let animationInterval = null
 
 function formatTime(unixTime) {
@@ -158,7 +159,7 @@ function prevFrame() {
 }
 
 function toggleTraffic() {
-  if (!trafficLayer || !mapInstance.value) return
+  if (weatherMapDisposed || !trafficLayer || !mapInstance.value) return
   if (trafficVisible.value) {
     mapInstance.value.removeLayer(trafficLayer)
     trafficVisible.value = false
@@ -245,7 +246,7 @@ onMounted(async () => {
       return res.json();
     })
     .then(({ enabled }) => {
-      if (!mapInstance.value) return;
+      if (weatherMapDisposed || !mapInstance.value) return;
       if (!enabled) { trafficStatus.value = 'NO KEY'; return; }
       trafficStatus.value = 'LOADING';
       const trafficUrl = () => `/api/traffic/flow/{z}/{x}/{y}?v=${Math.floor(Date.now() / 300000)}`;
@@ -440,6 +441,7 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  weatherMapDisposed = true;
   if (trafficRefreshInterval) clearInterval(trafficRefreshInterval);
   trafficLayer = null;
   stopAnimation();
