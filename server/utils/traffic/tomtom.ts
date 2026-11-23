@@ -12,7 +12,8 @@ export async function fetchTomTomRoadTile(z: number, x: number, y: number, key: 
   if (response.status === 204) return emptyTrafficCollection()
   if (!response.ok) throw new Error(`TomTom traffic request failed: HTTP ${response.status}`)
   const contentType = response.headers.get('content-type') || ''
-  if (!/application\\/(vnd\\.mapbox-vector-tile|octet-stream|x-protobuf)/.test(contentType)) {
+  const expectedTypes = ['application/vnd.mapbox-vector-tile', 'application/octet-stream', 'application/x-protobuf']
+  if (!expectedTypes.some((type) => contentType.includes(type))) {
     throw new Error('TomTom returned an unexpected tile format')
   }
   const bytes = new Uint8Array(await response.arrayBuffer())
