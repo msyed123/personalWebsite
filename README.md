@@ -61,44 +61,85 @@ All source attributions are visible in the widget footer. Labels use the site's 
 Provider API behavior on a live deployment is not guaranteed by unit tests; credentials and an integration smoke test are required before treating the overlay as production-verified.
 
 
-## Spotify `nowplaying` — reconnecting after refresh-token expiration
+## Spotify `nowplaying` — renew directly from the website
 
-Spotify announced on June 18, 2026 that refresh tokens expire **six months from the
-original user authorization**, enforced for existing developer apps starting
-July 20, 2026. Refreshing an *access token* does not extend that period.
-An expired refresh token returns `400 invalid_grant` and requires an
-interactive sign-in. The public website cannot safely initiate owner
-reauthorization for arbitrary visitors.
+Spotify refresh tokens expire **six months after the user authorizes the app**.
+After that, `400 invalid_grant` requires the owner to sign in to Spotify again.
+The public `nowplaying` card remains read-only.
 
-The `nowplaying` terminal now displays a clear, non-sensitive error instead
-of silently hiding failed responses. To reconnect **the site owner's account**:
+### One-time website setup (Heroku + Spotify)
 
-1. In the [Spotify Developer Dashboard](https://developer.spotify.com/dashboard),
-   edit the existing app's settings. Add this exact allowed redirect URI:
-   `http://127.0.0.1:8888/callback` (loopback IP, **not** `localhost`).
-   Leave the existing app's Client ID unchanged.
-2. On your own trusted computer, set `SPOTIFY_CLIENT_ID` and
-   `SPOTIFY_CLIENT_SECRET` as **local environment variables** using the
-   values for that same app. Do not put them into the repository or share them.
-   Then run `node scripts/spotify-reauthorize.mjs`.
-3. Open the URL printed by the script **on that computer**, sign into
-   the Spotify account that should appear on the website, and approve the
-   two read-only scopes: `user-read-currently-playing` and
-   `user-read-recently-played`.
-4. The script receives the OAuth callback on `127.0.0.1` and prints a **new
-   refresh token in the local terminal only**. In your Heroku application's
-   Settings → Config Vars, replace `SPOTIFY_REFRESH_TOKEN` with the new
-   secret and restart/redeploy as needed. Keep `SPOTIFY_CLIENT_ID` and
-   `SPOTIFY_CLIENT_SECRET` unchanged.
-5. Test `nowplaying` again. Repeat this owner-only consent workflow when
-   the six-month authorization expires; never add the Spotify login flow to
-   the publicly accessible terminal.
+A Heroku dyno cannot persist a file across a restart, and a refresh token must
+never be placed in client JavaScript. This solution uses Upstash Redis over REST
+for persistent token storage, encrypted on the server with AES-256-GCM.
 
-The script is local-only, uses OAuth state validation, and does not serve the
-refresh token to the browser. **Never paste credentials, authorization codes,
-or refresh tokens into GitHub, issue comments, screenshots, or chat.**
+1. Create a persistent Redis database at [Upstash](https://console.upstash.com/redis).
+   Copy its **REST URL** and **Standard REST token**, not its read-only token.
+   The Standard token must remain server-side.
+2. In your Heroku app's **Settings → Config Vars**, retain the existing
+   `SPOTIFY_CLIENT_ID` and `SPOTIFY_CLIENT_SECRET`. Add these:
+   - `UPSTASH_REDIS_REST_URL` — the Upstash HTTPS REST endpoint
+   - `UPSTASH_REDIS_REST_TOKEN` — the Upstash **Standard** REST token
+   - `SPOTIFY_ADMIN_SECRET` — a random owner-only key, **at least 32 characters**
+     (generate one locally with `openssl rand -hex 32`). Save it in your password
+     manager. This private key authorizes the reconnect form; it is **not** your
+     Spotify password.
+   - `SPOTIFY_WEB_REDIRECT_URI` — the exact HTTPS URL on the canonical public
+     website: `https://YOUR-SITE-DOMAIN/api/spotify/callback`.
+   - Optional: `SPOTIFY_OWNER_ACCOUNT_ID` — the immutable `account_id` from
+     Spotify `GET /v1/me`. If configured, even the first renewal must match it.
+     Otherwise the **first** successful admin-key-assisted Spotify authorization
+     pins that account ID in the encrypted store; later connections must match.
+3. In [Spotify Developer Dashboard](https://developer.spotify.com/dashboard),
+   add the **exact same** `SPOTIFY_WEB_REDIRECT_URI` as an allowed redirect URI
+   for the existing Spotify application. It must use HTTPS, not localhost.
+   Redeploy/restart Heroku after setting config vars.
 
-Relevant Spotify documentation:
-[refresh-token expiration](https://developer.spotify.com/blog/2026-06-18-refresh-token-expiration),
-[redirect URI requirements](https://developer.spotify.com/documentation/web-api/concepts/redirect_uri),
-[required playback scopes](https://developer.spotify.com/documentation/web-api/concepts/scopes).
+These one-time values are set on the server only and must **never** be prefixed
+`NUXT_PUBLIC_`, committed to Git, pasted into issue comments, or placed in an
+untrusted website.
+
+### Renew the authorization (from any device)
+
+1. Open the public website at the **same canonical HTTPS host** as the configured
+   redirect URI.
+2. Type `spotify connect` in the existing terminal, or visit
+   `/spotify/connect` directly.
+3. Enter your owner access key and select **Sign in with Spotify**. Spotify
+   handles the login on its own site. Select the same Spotify account as before.
+4. The OAuth callback checks its short-lived, HttpOnly/Secure/SameSite=Lax
+   anti-CSRF state, verifies the immutable Spotify `account_id`, and saves the
+   refresh token encrypted in Redis. The token is never shown in the browser.
+   If the account is different from the pinned owner, **nothing is replaced**.
+5. Return to the terminal and run `nowplaying`. Each subsequent request reads
+   the durable token; no need to update `SPOTIFY_REFRESH_TOKEN` in Heroku again.
+
+The initial `SPOTIFY_REFRESH_TOKEN` config variable remains a migration
+fallback until a successful website renewal. It may be removed after confirming
+the new stored authorization works. The site also stores any rotated refresh
+tokens without resetting the six-month authorization age.
+
+### Security and failure behavior
+
+- The reconnection endpoint accepts **POST only**, checks the same-origin
+  request against the configured redirect origin, and compares hashes of the
+  owner key in constant time. A public visitor cannot authorize an account
+  without the private owner key.
+- The owner key is not embedded in a link or stored in a browser cookie.
+  Only a random short-lived state value is stored as an HttpOnly cookie.
+- Tokens are encrypted before they reach Redis; only the server has the
+  Redis Standard token and the encryption inputs.
+- If persistent storage fails or the Spotify authorization expires, the public
+  terminal shows a safe diagnostic instead of leaking any credentials.
+- Rotating `SPOTIFY_ADMIN_SECRET` or `SPOTIFY_CLIENT_SECRET` changes the key
+  used to encrypt stored data, so **reconnect after rotating either secret**.
+- If you want to retain the former local workflow as a backup, the helper
+  `scripts/spotify-reauthorize.mjs` can still produce a token locally, but
+  it is not required for the website renewal flow.
+
+Official docs:
+[Spotify refresh expiration](https://developer.spotify.com/blog/2026-06-18-refresh-token-expiration),
+[Spotify authorization-code flow](https://developer.spotify.com/documentation/web-api/tutorials/code-flow),
+[Spotify redirect rules](https://developer.spotify.com/documentation/web-api/concepts/redirect_uri),
+[Upstash Redis REST API](https://upstash.com/docs/redis/features/restapi),
+[Heroku dyno filesystem](https://devcenter.heroku.com/articles/dyno-isolation).
