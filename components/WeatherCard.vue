@@ -76,7 +76,7 @@
       <div class="flex flex-wrap justify-between items-center gap-x-4 gap-y-1">
         <div class="flex flex-col gap-0.5">
           <span class="text-[11px] tracking-[0.17em] text-terminal-amber font-bold">RADAR TIMELINE</span>
-          <span class="text-[10px] text-terminal-amber-dim">{{ radarLoading ? '◌ LOADING FRAME' : (isPlaying ? '◉ PLAYING' : '◯ PAUSED') }} · {{ timestamps.length ? 'PAST OBSERVATIONS' : 'AWAITING RADAR' }}</span>
+          <span class="text-[10px] text-terminal-amber-dim">{{ isPlaying ? '◉ PLAYING' : '◯ PAUSED' }} · {{ timestamps.length ? 'PAST OBSERVATIONS' : 'AWAITING RADAR' }}</span>
         </div>
         <div class="text-right flex flex-col gap-0.5" aria-live="off">
           <span class="text-[10px] tracking-wider text-terminal-amber-dim">FRAME TIME</span>
