@@ -111,7 +111,7 @@ export function createTrafficMap({ gl, leafletMap, onStatus, onReady, onSources,
         if (reasons.includes('INVALID_TILE_FORMAT')) return 'TILE FORMAT'
         if (reasons.includes('TIMEOUT')) return 'TIMEOUT'
         if (reasons.includes('TILE_DECODING_OR_NETWORK')) return 'DECODE/NET'
-        const upstream = reasons.find(value => /^UPSTREAM_HTTP_\\d+$/.test(value || ''))
+        const upstream = reasons.find(value => /^UPSTREAM_HTTP_\d+$/.test(value || ''))
         return upstream ? upstream.replace('UPSTREAM_HTTP_', 'HTTP ') : 'ERROR'
       }
       if (succeeded.length < sampled.length) return 'DEGRADED'
@@ -224,7 +224,7 @@ async function parseCollection(response) {
     let category = 'ERROR'
     try {
       const error = await response.json()
-      const allowed = /^(AUTHORIZATION|RATE_LIMIT|INVALID_TILE_FORMAT|OVERSIZE_TILE|TIMEOUT|TILE_DECODING_OR_NETWORK|UPSTREAM_HTTP_\\d{3})$/
+      const allowed = /^(AUTHORIZATION|RATE_LIMIT|INVALID_TILE_FORMAT|OVERSIZE_TILE|TIMEOUT|TILE_DECODING_OR_NETWORK|UPSTREAM_HTTP_\d{3})$/
       const candidate = String(error?.statusMessage || '').replace(/^Road traffic /, '')
       if (allowed.test(candidate)) category = candidate
     } catch {}
