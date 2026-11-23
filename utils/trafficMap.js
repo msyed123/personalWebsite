@@ -18,7 +18,7 @@ const ROAD_ID = 'traffic-roads'
 const SENSOR_ID = 'traffic-sensors'
 
 // The renderer consumes only normalized GeoJSON, never TomTom/WSDOT response types.
-export function createTrafficMap({ gl, leafletMap, onStatus, onReady, onSources, onUpdate }) {
+export function createTrafficMap({ gl, leafletMap, onStatus, onReady, onSources, onUpdate, onHealth = () => {} }) {
   let active = true
   let visible = true
   let roadEnabled = false
@@ -97,6 +97,16 @@ export function createTrafficMap({ gl, leafletMap, onStatus, onReady, onSources,
     gl.getSource(ROAD_ID)?.setData({ type: 'FeatureCollection', features: roads })
     gl.getSource(SENSOR_ID)?.setData({ type: 'FeatureCollection', features: stations })
     onUpdate(latestTime)
+    const health = (kind, enabled) => {
+      if (!enabled) return 'NO KEY'
+      const sampled = results.filter((_, i) => requests[i].kind === kind)
+      if (!sampled.length) return 'NO DATA'
+      const succeeded = sampled.filter(item => item.status === 'fulfilled')
+      if (!succeeded.length) return 'ERROR'
+      if (succeeded.length < sampled.length) return 'DEGRADED'
+      return succeeded.some(item => item.value.features.length > 0) ? 'LIVE' : 'NO DATA'
+    }
+    onHealth({ roads: health('road', roadEnabled), stations: health('sensor', sensorEnabled) })
 
     if (failures && successes) onStatus('DEGRADED')
     else if (failures) onStatus('ERROR')
@@ -154,6 +164,10 @@ export function createTrafficMap({ gl, leafletMap, onStatus, onReady, onSources,
       roadEnabled = status.roads === true
       sensorEnabled = status.stations === true
       onSources({ roads: roadEnabled, stations: sensorEnabled })
+      onHealth({
+        roads: roadEnabled ? 'LOADING' : 'NO KEY',
+        stations: sensorEnabled ? 'LOADING' : 'NO KEY'
+      })
       if (!roadEnabled && !sensorEnabled) {
         onStatus('NO KEY')
         onReady(false)
@@ -165,7 +179,10 @@ export function createTrafficMap({ gl, leafletMap, onStatus, onReady, onSources,
       refreshTimer = setInterval(refresh, 180_000)
       await refresh()
     } catch {
-      if (active) onStatus('OFFLINE')
+      if (active) {
+        onStatus('OFFLINE')
+        onHealth({ roads: 'OFFLINE', stations: 'OFFLINE' })
+      }
     }
   }
 
