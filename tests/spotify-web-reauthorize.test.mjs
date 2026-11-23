@@ -53,7 +53,7 @@ const mockStore = () => {
 
 test('owner setup is mandatory and insecure callback configuration rejected', () => {
   restore()
-  delete process.env.SPOTIFY_ADMIN_SECRET
+  delete process.env.SPOTIFY_TOKEN_ENCRYPTION_KEY
   assert.equal(renewalStoreReady(), false)
   setup()
   assert.equal(renewalStoreReady(), true)
