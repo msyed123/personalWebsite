@@ -124,7 +124,7 @@ export function createTrafficMap({ gl, leafletMap, onStatus, onReady, onSources,
       paint: {
         'line-color': '#080a0e',
         'line-width': ['interpolate', ['linear'], ['zoom'], 6, 4, 10, 7, 13, 10],
-        'line-opacity': 0.94
+        'line-opacity': 1
       }
     }, firstLabel)
     gl.addLayer({
@@ -133,7 +133,7 @@ export function createTrafficMap({ gl, leafletMap, onStatus, onReady, onSources,
       paint: {
         'line-color': colorExpression,
         'line-width': ['interpolate', ['linear'], ['zoom'], 6, 2.5, 10, 4.5, 13, 7],
-        'line-opacity': 0.94
+        'line-opacity': 1
       }
     }, firstLabel)
     gl.addLayer({
