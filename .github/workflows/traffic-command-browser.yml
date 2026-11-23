@@ -6,6 +6,8 @@ on:
       - 'layouts/default.vue'
       - 'utils/trafficMap.js'
       - 'tests/traffic-command-browser.mjs'
+      - 'utils/asciiRadarLayer.js'
+      - '.github/workflows/traffic-command-browser.yml'
   push:
     branches: [feature/traffic-command-card]
 jobs:
@@ -21,7 +23,7 @@ jobs:
       - run: npm test
       - run: npm run build
       - run: npm install --no-save playwright
-      - run: npx playwright install --with-deps chromium
+      - run: npx playwright install chromium --only-shell
       - run: node tests/traffic-command-browser.mjs
       - uses: actions/upload-artifact@v4
         if: always()

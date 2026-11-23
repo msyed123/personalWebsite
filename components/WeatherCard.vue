@@ -62,18 +62,60 @@
         <span class="text-gray-300">●</span> CLOSED
         <div v-if="trafficStationsEnabled" class="opacity-80">SENSOR READINGS: DOTS</div>
       </div>
-      <!-- Controls overlays -->
+      <!-- Keep zoom tools in the map; playback and the clock live in the
+           dedicated, more legible timeline below the geographic viewport. -->
       <div class="absolute bottom-2 left-2 z-[999] flex map-control-bg border border-terminal-amber-dim/50 text-xs text-terminal-amber font-bold">
-        <button v-if="!trafficOnly" @click="togglePlay" class="hover:text-terminal-blue transition-colors focus:outline-none w-16 text-left px-3 py-1.5">{{ isPlaying ? '|| PAUSE' : '► PLAY' }}</button>
-        <button v-if="!trafficOnly" @click="prevFrame" class="hover:text-terminal-blue transition-colors focus:outline-none px-3 py-1.5">&lt;</button>
-        <button v-if="!trafficOnly" @click="nextFrame" class="hover:text-terminal-blue transition-colors focus:outline-none px-3 py-1.5">&gt;</button>
-        <div class="border-l border-terminal-amber-dim/50 flex">
-          <button aria-label="Zoom in" @click="zoomIn" class="hover:text-terminal-blue transition-colors focus:outline-none px-3 py-1.5 border-r border-terminal-amber-dim/50">+</button>
-          <button aria-label="Zoom out" @click="zoomOut" class="hover:text-terminal-blue transition-colors focus:outline-none px-3 py-1.5">-</button>
+        <button aria-label="Zoom in" @click="zoomIn" class="hover:text-terminal-blue transition-colors focus:outline-none px-3 py-1.5 border-r border-terminal-amber-dim/50">+</button>
+        <button aria-label="Zoom out" @click="zoomOut" class="hover:text-terminal-blue transition-colors focus:outline-none px-3 py-1.5">−</button>
+      </div>
+    </div>
+
+    <!-- A proper temporal navigator: visible time, accessible playhead, and
+         controls outside the map so precipitation never hides the timeline. -->
+    <div v-if="!trafficOnly" class="radar-timeline border border-terminal-amber-dim/50 bg-terminal-black px-3 py-3 flex flex-col gap-2" role="group" aria-label="Radar timeline" :aria-busy="radarLoading">
+      <div class="flex flex-wrap justify-between items-center gap-x-4 gap-y-1">
+        <div class="flex flex-col gap-0.5">
+          <span class="text-[11px] tracking-[0.17em] text-terminal-amber font-bold">RADAR TIMELINE</span>
+          <span class="text-[10px] text-terminal-amber-dim">{{ radarLoading ? '◌ LOADING FRAME' : (isPlaying ? '◉ PLAYING' : '◯ PAUSED') }} · {{ timestamps.length ? 'PAST OBSERVATIONS' : 'AWAITING RADAR' }}</span>
+        </div>
+        <div class="text-right flex flex-col gap-0.5" aria-live="off">
+          <span class="text-[10px] tracking-wider text-terminal-amber-dim">FRAME TIME</span>
+          <span class="text-xl font-bold text-terminal-blue tabular-nums leading-tight">{{ formatTime(timestamps[currentFrame]) || '--:--' }}</span>
         </div>
       </div>
-      <div v-if="timestamps.length > 0" class="absolute bottom-2 right-2 z-[999] map-control-bg px-2 py-1.5 border border-terminal-amber-dim/50 text-xs text-terminal-amber font-bold">
-        {{ formatTime(timestamps[currentFrame]) }}
+      <input
+        id="radar-time-scrubber"
+        type="range"
+        class="radar-scrubber block w-full h-5 cursor-pointer disabled:cursor-not-allowed disabled:opacity-40"
+        :min="0"
+        :max="Math.max(0, timestamps.length - 1)"
+        :step="1"
+        :value="currentFrame"
+        :disabled="timestamps.length < 2"
+        :style="{ '--radar-progress': timelineProgress + '%' }"
+        aria-label="Scrub radar timeline"
+        :aria-valuetext="formatTime(timestamps[currentFrame]) || 'Radar not loaded'"
+        @input="scrubFrame"
+      />
+      <div class="flex items-center justify-between gap-2 text-[10px] text-terminal-amber-dim tabular-nums" aria-hidden="true">
+        <span>{{ formatTime(timestamps[0]) || '--:--' }}</span>
+        <span class="tracking-wider">{{ timestamps.length ? (currentFrame + 1) + ' / ' + timestamps.length + ' · LOOP' : 'NO FRAMES' }}</span>
+        <span>{{ formatTime(timestamps[timestamps.length - 1]) || '--:--' }}</span>
+      </div>
+      <div class="flex flex-wrap gap-2 pt-1">
+        <button type="button" @click="prevFrame" :disabled="timestamps.length < 2" aria-label="Previous radar frame"
+          class="border border-terminal-amber-dim/60 px-3 py-1.5 text-xs text-terminal-amber hover:text-terminal-blue focus-visible:outline focus-visible:outline-2 focus-visible:outline-terminal-blue disabled:opacity-40">
+          ◀ PREV
+        </button>
+        <button type="button" @click="togglePlay" :disabled="timestamps.length < 2"
+          :aria-label="isPlaying ? 'Pause radar animation' : 'Play radar animation'"
+          class="border border-terminal-blue/60 px-4 py-1.5 text-xs font-bold text-terminal-blue hover:text-terminal-amber focus-visible:outline focus-visible:outline-2 focus-visible:outline-terminal-blue disabled:opacity-40">
+          {{ isPlaying ? '❚❚ PAUSE' : '▶ PLAY' }}
+        </button>
+        <button type="button" @click="nextFrame" :disabled="timestamps.length < 2" aria-label="Next radar frame"
+          class="border border-terminal-amber-dim/60 px-3 py-1.5 text-xs text-terminal-amber hover:text-terminal-blue focus-visible:outline focus-visible:outline-2 focus-visible:outline-terminal-blue disabled:opacity-40">
+          NEXT ▶
+        </button>
       </div>
     </div>
 
@@ -157,6 +199,10 @@ let radarController = null
 const timestamps = ref([])
 const currentFrame = ref(0)
 const isPlaying = ref(false)
+const radarLoading = ref(false)
+const timelineProgress = computed(() =>
+  timestamps.value.length > 1 ? currentFrame.value * 100 / (timestamps.value.length - 1) : 0
+)
 // Keep precipitation vivid alone, but let congested roads remain visible beneath rain.
 const RADAR_OPACITY_SOLO = 0.95
 const RADAR_OPACITY_WITH_TRAFFIC = 0.55
@@ -179,38 +225,67 @@ function formatTime(unixTime) {
 }
 
 function stopAnimation() {
-  isPlaying.value = false;
-  if (animationInterval) clearInterval(animationInterval);
+  isPlaying.value = false
+  if (animationInterval !== null) clearTimeout(animationInterval)
+  animationInterval = null
+}
+
+function scheduleNextPlayback() {
+  if (!isPlaying.value || weatherMapDisposed) return
+  // Delay after a completed crossfade; avoid advancing into unloaded frames.
+  animationInterval = setTimeout(async () => {
+    if (!isPlaying.value || weatherMapDisposed) return
+    await nextFrame()
+    if (isPlaying.value && !weatherMapDisposed) scheduleNextPlayback()
+  }, 400)
 }
 
 function startAnimation() {
-  if (!radarController || !timestamps.value.length) return;
-  isPlaying.value = true;
-  if (animationInterval) clearInterval(animationInterval);
-  animationInterval = setInterval(nextFrame, 1000);
+  if (!radarController || timestamps.value.length < 2) return
+  stopAnimation()
+  isPlaying.value = true
+  scheduleNextPlayback()
 }
 
 function togglePlay() {
-  if (isPlaying.value) stopAnimation();
-  else startAnimation();
+  if (isPlaying.value) stopAnimation()
+  else startAnimation()
 }
 
-function showFrame(index) {
-  if (!radarController || !timestamps.value[index]) return;
-  radarController.showFrame(index,
-    trafficVisible.value ? RADAR_OPACITY_WITH_TRAFFIC : RADAR_OPACITY_SOLO
-  );
-  currentFrame.value = index;
+async function showFrame(index) {
+  if (!radarController || !Number.isInteger(index) || !timestamps.value[index]) {
+    return false
+  }
+  // The playhead shows the requested time immediately. A brief buffering
+  // indicator explains why the prior frame stays visible until tiles arrive.
+  currentFrame.value = index
+  radarLoading.value = true
+  try {
+    return await radarController.showFrame(index,
+      trafficVisible.value ? RADAR_OPACITY_WITH_TRAFFIC : RADAR_OPACITY_SOLO)
+  } finally {
+    // Rapid scrubs can supersede this request; only the most recent selection
+    // may clear its pending/loading indicator.
+    if (currentFrame.value === index) radarLoading.value = false
+  }
 }
 
 function nextFrame() {
-  if (!timestamps.value.length) return;
-  showFrame((currentFrame.value + 1) % timestamps.value.length);
+  if (timestamps.value.length < 2) return Promise.resolve(false)
+  return showFrame((currentFrame.value + 1) % timestamps.value.length)
 }
 
 function prevFrame() {
-  if (!timestamps.value.length) return;
-  showFrame((currentFrame.value + timestamps.value.length - 1) % timestamps.value.length);
+  if (timestamps.value.length < 2) return Promise.resolve(false)
+  stopAnimation()
+  return showFrame((currentFrame.value + timestamps.value.length - 1) % timestamps.value.length)
+}
+
+function scrubFrame(event) {
+  const index = Number(event.target.value)
+  if (!Number.isInteger(index) || index < 0 || index >= timestamps.value.length) return
+  stopAnimation()
+  void showFrame(index)
 }
 
 function toggleTraffic() {
@@ -365,6 +440,7 @@ onMounted(async () => {
 onUnmounted(() => {
   weatherMapDisposed = true;
   stopAnimation();
+  radarLoading.value = false;
   if (trafficController) trafficController.destroy();
   trafficController = null;
   radarController?.destroy();
@@ -376,6 +452,44 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+.radar-scrubber {
+  appearance: none;
+  -webkit-appearance: none;
+  border: 0;
+  outline-offset: 4px;
+  background: linear-gradient(to right,
+    #00d2ff 0%, #00d2ff var(--radar-progress),
+    #374151 var(--radar-progress), #374151 100%);
+  background-clip: content-box;
+  padding: 8px 0;
+  height: 22px;
+  border-radius: 0;
+}
+
+.radar-scrubber::-webkit-slider-thumb {
+  appearance: none;
+  -webkit-appearance: none;
+  height: 16px;
+  width: 9px;
+  border: 2px solid #0a0a0a;
+  border-radius: 1px;
+  background: #00d2ff;
+  box-shadow: 0 0 0 1px #00d2ff;
+}
+
+.radar-scrubber::-moz-range-thumb {
+  height: 14px;
+  width: 7px;
+  border: 2px solid #0a0a0a;
+  border-radius: 1px;
+  background: #00d2ff;
+  box-shadow: 0 0 0 1px #00d2ff;
+}
+
+.radar-scrubber:focus-visible {
+  outline: 2px solid #00d2ff;
+}
+
 /* Optional styling to make the map match a CRT effect slightly */
 .map-crt-effect {
   filter: contrast(1.1) saturate(1.2);

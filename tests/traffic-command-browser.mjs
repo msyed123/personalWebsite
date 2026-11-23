@@ -16,6 +16,23 @@ for(let y=0;y<256;y++)for(let x=0;x<256;x++){
  storm.data[i+3]=rain?225:0
 }
 const stormTile=PNG.sync.write(storm)
+const variants=[stormTile]
+for(const variant of [1,2]) {
+  const alt=new PNG({width:256,height:256})
+  for(let y=0;y<256;y++)for(let x=0;x<256;x++) {
+    const i=(y*256+x)*4
+    // Keep all three storm fields over the small cropped Seattle viewport at
+    // z=7, while changing both position and rain intensity between frames.
+    const dx=(x-(variant===1?143:112))/46
+    const dy=(y-(variant===1?192:175))/38
+    const rain=dx*dx+dy*dy<1.4 && (x*13+y*17)%29!==0
+    alt.data[i]=rain?(variant===1?210:15):0
+    alt.data[i+1]=rain?(variant===1?135:195):0
+    alt.data[i+2]=rain?(variant===1?45:160):0
+    alt.data[i+3]=rain?225:0
+  }
+  variants.push(PNG.sync.write(alt))
+}
 const port=4357
 const child=spawn(process.execPath,['.output/server/index.mjs'],{
  env:{...process.env,NITRO_PORT:String(port),NITRO_HOST:'127.0.0.1'},stdio:['ignore','pipe','pipe']
@@ -54,11 +71,17 @@ try{
    })
    await page.route('https://api.rainviewer.com/public/weather-maps.json',route=>route.fulfill({
      status:200,contentType:'application/json',
-     body:JSON.stringify({radar:{past:[{path:'/v2/radar/test-1',time:1763870700}]}})
+     body:JSON.stringify({radar:{past:[
+       {path:'/v2/radar/test-1',time:1763870700},
+       {path:'/v2/radar/test-2',time:1763871300},
+       {path:'/v2/radar/test-3',time:1763871900}
+     ]}})
    }))
-   await page.route('https://tilecache.rainviewer.com/**',route=>route.fulfill({
-     status:200,contentType:'image/png',body:stormTile
-   }))
+   await page.route('https://tilecache.rainviewer.com/**',route=>{
+     const url=route.request().url()
+     const variant=url.includes('/test-3/')?2:url.includes('/test-2/')?1:0
+     return route.fulfill({status:200,contentType:'image/png',body:variants[variant]})
+   })
    await page.route('**/api/traffic/status',route=>route.fulfill({
      status:200,contentType:'application/json',body:JSON.stringify({roads:true,stations:true,refreshSeconds:180})
    }))
@@ -73,7 +96,7 @@ try{
      status:200,contentType:'application/json',body:JSON.stringify({type:'FeatureCollection',features:[{type:'Feature',geometry:{type:'Point',coordinates:[-122.33,47.614]},properties:{kind:'sensor',source:'WSDOT',condition:'flowing',observedAt:'2026-11-23T08:44:00Z'}}]})
    }))
    await page.goto(`http://127.0.0.1:${port}`,{waitUntil:'domcontentloaded',timeout:60000})
-   const input=page.locator('input').last()
+   const input=page.locator('footer input').last()
    await input.fill('traffic Seattle')
    await input.press('Enter')
    await page.getByText('LIVE TRAFFIC SIGNAL').waitFor({timeout:35000})
@@ -100,12 +123,39 @@ try{
    await input.press('Enter')
    await page.getByText('LIVE RADAR SIGNAL').waitFor({timeout:30000})
    if(await page.getByText('LIVE TRAFFIC SIGNAL').count())throw Error('Traffic-only header survived weather switch')
-   await page.waitForTimeout(3500)
+   const timeline=page.getByRole('group',{name:'Radar timeline'})
+   await timeline.waitFor({timeout:15000})
+   const slider=page.getByRole('slider',{name:'Scrub radar timeline'})
+   await page.waitForFunction(() => {
+     const input=document.querySelector('input[aria-label="Scrub radar timeline"]')
+     return input && input.max==='2'
+   },{timeout:15000})
+   await page.getByRole('button',{name:'Pause radar animation'}).click()
+   await slider.evaluate(el=>{
+     el.value='2'
+     el.dispatchEvent(new Event('input',{bubbles:true}))
+   })
+   await page.waitForFunction(() => document.querySelector('input[aria-label="Scrub radar timeline"]')?.value==='2')
+   // The scrubber may lead a tile load. Wait for the selected frame to be
+   // rendered, not an arbitrary time delay.
+   await page.waitForFunction(() =>
+     document.querySelector('[aria-label="Radar timeline"]')?.getAttribute('aria-busy') === 'false',
+     null, {timeout:20000})
+   const weatherCard=page.locator('[class*="max-w-2xl"]').last()
+   await weatherCard.screenshot({path:`preview-output/weather-timeline-${name}.png`})
+   await page.getByRole('button',{name:'Next radar frame'}).click()
+   await page.waitForFunction(() => document.querySelector('input[aria-label="Scrub radar timeline"]')?.value==='0')
+   await page.waitForTimeout(350)
+   await weatherCard.screenshot({path:`preview-output/weather-timeline-midfade-${name}.png`})
+   await page.waitForFunction(() =>
+     document.querySelector('[aria-label="Radar timeline"]')?.getAttribute('aria-busy') === 'false',
+     null, {timeout:20000})
+   await weatherCard.screenshot({path:`preview-output/weather-timeline-wrapped-${name}.png`})
    if(radarRequests < 2)throw Error('ASCII radar was never requested inside MapLibre: '+radarRequests)
    if(errors.length)throw Error('Browser errors: '+JSON.stringify(errors))
-   const weatherCard=page.locator('[class*="max-w-2xl"]').last()
-   await weatherCard.screenshot({path:`preview-output/weather-radar-behind-roads-${name}.png`})
-   summaries.push({name,radarRequestsBeforeWeather:0,radarRequestsAfterWeather:radarRequests,...info,pageErrors:errors})
+   summaries.push({name,radarRequestsBeforeWeather:0,radarRequestsAfterWeather:radarRequests,
+     sliderMax:await slider.getAttribute('max'),sliderValue:await slider.inputValue(),
+     ...info,pageErrors:errors})
    await page.close()
  }
  writeFileSync('preview-output/traffic-browser-report.json',JSON.stringify(summaries,null,2))
