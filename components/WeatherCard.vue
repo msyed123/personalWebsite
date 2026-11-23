@@ -43,7 +43,7 @@
     </div>
 
     <div class="text-[10px] sm:text-xs text-terminal-amber-dim/50 flex justify-between tracking-widest uppercase mt-[-4px]">
-      <span>> Source: Rainviewer / Open-Meteo</span>
+      <span>> Source: Rainviewer / Open-Meteo / <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer" class="underline">OpenStreetMap</a></span>
       <span>SYS.OP.OK</span>
     </div>
   </div>
@@ -168,9 +168,11 @@ onMounted(async () => {
     maxZoom: 13
   }).setView([lat, lon], 10); 
 
-  // CartoDB Dark Matter basemap looks pristine for a CLI environment
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-    maxZoom: 19
+  // OpenStreetMap raster tiles require no API key; style only the basemap, not radar.
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    className: 'weather-basemap-tiles',
+    attribution: '&copy; OpenStreetMap contributors'
   }).addTo(mapInstance.value);
 
   // Define the custom ASCII Canvas GridLayer
@@ -349,6 +351,11 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+/* Darken only the street map tiles; radar canvas colors remain untouched. */
+:deep(.weather-basemap-tiles) {
+  filter: invert(1) hue-rotate(180deg) brightness(0.65) contrast(1.15);
+}
+
 /* Optional styling to make the map match a CRT effect slightly */
 .map-crt-effect {
   filter: contrast(1.1) saturate(1.2);
