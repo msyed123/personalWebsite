@@ -335,11 +335,12 @@ try{
      timelineLayout:afterLoopLayout,...info,pageErrors:errors})
    const layerButtons=page.getByRole('group',{name:'Weather map layer'})
    await page.getByText('RainViewer radar fallback (not MRMS)',{exact:false}).waitFor()
-   const slowForecastRequested=page.waitForRequest(req=>req.url().includes('geo.weather.gc.ca') &&
-     new URL(req.url()).searchParams.get('REQUEST')==='GetCapabilities',{timeout:10000})
-   await layerButtons.getByRole('button',{name:'Precipitation',exact:true}).click()
+   await Promise.all([
+     page.waitForRequest(req=>req.url().includes('geo.weather.gc.ca') &&
+       new URL(req.url()).searchParams.get('REQUEST')==='GetCapabilities',{timeout:10000}),
+     layerButtons.getByRole('button',{name:'Precipitation',exact:true}).click({timeout:5000})
+   ])
    await page.getByText('LOADING PRECIPITATION',{exact:true}).waitFor()
-   await slowForecastRequested
    // Supersede the metadata request before it resolves; it must not create
    // any forecast tile source or turn Radar's busy state off prematurely.
    await layerButtons.getByRole('button',{name:'Radar',exact:true}).click()
@@ -348,12 +349,13 @@ try{
    if(forecastRequests!==0 || await page.getByRole('group',{name:'Precipitation timeline'}).count()) {
      throw Error('A stale forecast replaced the radar after switching')
    }
-   const requestedForecastTile=page.waitForResponse(res=>res.url().includes('geo.weather.gc.ca') &&
-     new URL(res.url()).searchParams.get('REQUEST')==='GetMap',{timeout:20000})
-   await layerButtons.getByRole('button',{name:'Precipitation',exact:true}).click()
+   await Promise.all([
+     page.waitForResponse(res=>res.url().includes('geo.weather.gc.ca') &&
+       new URL(res.url()).searchParams.get('REQUEST')==='GetMap',{timeout:20000}),
+     layerButtons.getByRole('button',{name:'Precipitation',exact:true}).click({timeout:5000})
+   ])
    await page.getByText('Millimetres accumulated in the preceding hour.',{exact:false}).waitFor()
    await page.getByRole('slider',{name:'Scrub precipitation timeline'}).waitFor()
-   await requestedForecastTile
    if(!forecastRequests || await page.getByRole('group',{name:'Radar timeline'}).count()) {
      throw Error('The precipitation forecast did not replace the radar')
    }

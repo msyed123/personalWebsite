@@ -78,8 +78,8 @@
           <button v-for="mode in ['radar', 'precipitation']" :key="mode" type="button"
             :aria-pressed="weatherLayer === mode"
             :class="weatherLayer === mode ? 'border-terminal-blue text-terminal-blue' : 'border-terminal-amber-dim/60 text-terminal-amber'"
-            class="border px-1 py-1.5 capitalize focus-visible:outline focus-visible:outline-2 focus-visible:outline-terminal-blue"
-            @click="selectWeatherLayer(mode)">{{ mode }}</button>
+            class="border px-1 py-1.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-terminal-blue"
+            @click="selectWeatherLayer(mode)">{{ mode === 'radar' ? 'Radar' : 'Precipitation' }}</button>
         </div>
         <div class="flex flex-wrap justify-between items-center gap-x-4 gap-y-1">
           <div class="flex flex-col gap-0.5">
