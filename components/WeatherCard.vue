@@ -224,9 +224,14 @@ onMounted(async () => {
   const gl = baseMap.getMaplibreMap();
   gl.once('load', async () => {
     if (weatherMapDisposed) return;
-    await document.fonts.load('12px "JetBrains Mono"');
-    if (weatherMapDisposed) return;
-    gl.setGlyphs(null);
+    try {
+      await document.fonts.load('12px "JetBrains Mono"');
+      if (weatherMapDisposed) return;
+      gl.setGlyphs(null);
+    } catch (error) {
+      // Leave the provider's default glyph stack usable if local font loading fails.
+      console.warn('[MAP] Local map font unavailable; using hosted glyphs', error);
+    }
     for (const layer of gl.getStyle().layers || []) {
       const id = layer.id;
       if (id === 'background' && layer.type === 'background') gl.setPaintProperty(id, 'background-color', '#090c0f');
@@ -236,7 +241,9 @@ onMounted(async () => {
         gl.setPaintProperty(id, 'line-color', id.includes('casing') ? '#211c14' : '#59431d');
       }
       if (layer.type === 'symbol' && layer.layout?.['text-field']) {
-        gl.setLayoutProperty(id, 'text-font', ['JetBrains Mono', 'Courier New', 'monospace']);
+        if (gl.getGlyphs() === null) {
+          gl.setLayoutProperty(id, 'text-font', ['JetBrains Mono', 'Courier New', 'monospace']);
+        }
         gl.setPaintProperty(id, 'text-color', /road|highway|place|label/.test(id) ? '#c28b33' : '#8c713f');
         gl.setPaintProperty(id, 'text-halo-color', '#090c0f');
         gl.setPaintProperty(id, 'text-halo-width', 1.25);
