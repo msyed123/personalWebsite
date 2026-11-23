@@ -1,18 +1,18 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  beginSpotifyTransaction, consumeSpotifyTransaction, readSpotifyAuthorizationSnapshot,
+  allowSpotifyRenewalAttempt, beginSpotifyTransaction, consumeSpotifyTransaction, readSpotifyAuthorizationSnapshot,
   renewalStoreReady, readSpotifyAuthorization, rotateSpotifyAuthorization, writeSpotifyAuthorization
 } from '../server/utils/spotifyAuthorizationStore.js'
 import {
-  isSpotifyOwner, spotifyRedirectUri, spotifyWebRenewalEnabled, validSpotifyAdminSecret,
+  isSpotifyOwner, spotifyRedirectUri, spotifyWebRenewalEnabled,
   spotifyAuthorizeUrl, spotifyAuthorizeAccount
 } from '../server/utils/spotifyWebAuth.js'
 
 const original = { ...process.env }
 const restore = () => {
   for (const key of [
-    'SPOTIFY_ADMIN_SECRET', 'SPOTIFY_OWNER_ACCOUNT_ID', 'SPOTIFY_WEB_RENEWAL_ENABLED', 'SPOTIFY_CLIENT_SECRET', 'SPOTIFY_WEB_REDIRECT_URI',
+    'SPOTIFY_OWNER_ACCOUNT_ID', 'SPOTIFY_WEB_RENEWAL_ENABLED', 'SPOTIFY_CLIENT_SECRET', 'SPOTIFY_WEB_REDIRECT_URI',
     'UPSTASH_REDIS_REST_URL', 'UPSTASH_REDIS_REST_TOKEN',
     'SPOTIFY_TOKEN_ENCRYPTION_KEY'
   ]) {
@@ -21,7 +21,6 @@ const restore = () => {
   }
 }
 const setup = () => {
-  process.env.SPOTIFY_ADMIN_SECRET = 'owner-key-'+ 'x'.repeat(48)
   process.env.SPOTIFY_CLIENT_SECRET = 'spotify-client-secret'
   process.env.SPOTIFY_WEB_REDIRECT_URI = 'https://personal.example/api/spotify/callback'
   process.env.UPSTASH_REDIS_REST_URL = 'https://example.upstash.io'
@@ -64,22 +63,6 @@ test('owner setup is mandatory and insecure callback configuration rejected', ()
   restore()
 })
 
-test('owner secret and OAuth state are checked without exposing input', () => {
-  setup()
-  assert.equal(validSpotifyAdminSecret(process.env.SPOTIFY_ADMIN_SECRET), true)
-  assert.equal(validSpotifyAdminSecret('a'.repeat(64)), false)
-  const auth = new URL(spotifyAuthorizeUrl({
-    state: 'a'.repeat(64),
-    redirectUri: spotifyRedirectUri(),
-    clientId: 'client-id'
-  }))
-  assert.equal(auth.origin, 'https://accounts.spotify.com')
-  assert.match(auth.searchParams.get('scope'), /user-read-private/)
-  assert.equal(auth.searchParams.get('state'), 'a'.repeat(64))
-  assert.equal(auth.searchParams.get('redirect_uri'), spotifyRedirectUri())
-  restore()
-})
-
 test('stored token is AES-GCM encrypted and remains available after re-reading', async () => {
   setup()
   const store = mockStore()
@@ -112,13 +95,13 @@ test('wrong encryption secret cannot read stored credentials', async () => {
   restore()
 })
 
-test('changing owner access key does not lose the encrypted Spotify token', async () => {
+test('changing Spotify client secret does not lose the encrypted Spotify token', async () => {
   setup()
   const store = mockStore()
   await writeSpotifyAuthorization({
     refreshToken: 'persisted-token', accountId: 'owner', request: store.request
   })
-  process.env.SPOTIFY_ADMIN_SECRET = 'new-admin-key-' + 'z'.repeat(48)
+  process.env.SPOTIFY_CLIENT_SECRET = 'rotated-client-secret'
   const record = await readSpotifyAuthorization({ request: store.request })
   assert.equal(record.refreshToken, 'persisted-token')
   restore()
@@ -198,6 +181,13 @@ function transactionalStore() {
       redis.delete(key)
     } else if (op === 'GET') {
       result = get(key)
+    } else if (op === 'EVAL' && key.includes("redis.call('INCR'")) {
+      const [limitKey, limit, seconds] = rest
+      assert.equal(value, 1)
+      assert.equal(seconds, 600)
+      const count = get(limitKey)
+      result = (count ?? 0) < limit ? 1 : 0
+      if (result) redis.set(limitKey, { value: (count ?? 0) + 1, until: count === null ? now + seconds : redis.get(limitKey).until })
     } else if (op === 'EVAL') {
       assert.equal(value, 1)
       assert.match(key, /redis.call\('GET', KEYS\[1\]\)/)
@@ -247,5 +237,22 @@ test('refresh rotation cannot overwrite a concurrent website renewal', async () 
     const result = await readSpotifyAuthorization(store)
     assert.match(result.refreshToken, /^rotate-/)
     assert.equal(result.authorizedAt, 2)
+  } finally { restore() }
+})
+
+test('start and exchange have separate shared budgets that expire', async () => {
+  setup()
+  try {
+    const store = transactionalStore()
+    const attempts = await Promise.all(Array.from({ length: 32 }, () => allowSpotifyRenewalAttempt('start', store)))
+    assert.equal(attempts.filter(Boolean).length, 30)
+    const exchanges = await Promise.all(Array.from({ length: 14 }, () => allowSpotifyRenewalAttempt('exchange', store)))
+    assert.equal(exchanges.filter(Boolean).length, 12)
+    store.advance(599)
+    assert.equal(await allowSpotifyRenewalAttempt('start', store), false)
+    assert.equal(await allowSpotifyRenewalAttempt('exchange', store), false)
+    store.advance(1)
+    assert.equal(await allowSpotifyRenewalAttempt('start', store), true)
+    assert.equal(await allowSpotifyRenewalAttempt('exchange', store), true)
   } finally { restore() }
 })

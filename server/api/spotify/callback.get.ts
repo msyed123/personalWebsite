@@ -3,7 +3,7 @@ import {
   sendRedirect, setHeader, createError
 } from 'h3'
 import {
-  consumeSpotifyTransaction, readSpotifyAuthorization, renewalStoreReady, writeSpotifyAuthorization
+  allowSpotifyRenewalAttempt, consumeSpotifyTransaction, readSpotifyAuthorization, renewalStoreReady, writeSpotifyAuthorization
 } from '../../utils/spotifyAuthorizationStore.js'
 import {
   isSpotifyOwner, spotifyAuthorizeAccount, spotifyOAuthBrowserCookie, spotifyRedirectUri, spotifyWebRenewalEnabled
@@ -36,6 +36,9 @@ export default defineEventHandler(async event => {
     return sendRedirect(event, '/spotify/connect?status=failed', 303)
   }
   try {
+    if (!await allowSpotifyRenewalAttempt('exchange')) {
+      return sendRedirect(event, '/spotify/connect?status=limited', 303)
+    }
     const account = await spotifyAuthorizeAccount({
       code: query.code,
       redirectUri,

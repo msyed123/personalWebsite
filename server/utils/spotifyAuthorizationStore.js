@@ -1,4 +1,4 @@
-import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto'
+import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto'
 
 // Persistence is external because Heroku dyno files disappear on restart.
 // Every Redis request is server-to-server; never return the Redis API key or
@@ -109,7 +109,8 @@ export async function writeSpotifyAuthorization({
 // consume the state by knowing only the value returned by Spotify.
 function transactionKey(state, browser) {
   if (![state, browser].every(value => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value))) return null
-  return KEY + ':transaction:' + state + ':' + browser
+  const binding = createHash('sha256').update(state + ':' + browser).digest('hex')
+  return KEY + ':transaction:' + binding
 }
 
 export const spotifyTransactionLifetime = 600
@@ -148,4 +149,18 @@ export async function readSpotifyAuthorizationSnapshot({ request = fetch } = {})
   if (revision === null) return null
   if (typeof revision !== 'string') throw new Error('Invalid Spotify token store result')
   return { ...decrypt(revision, settings), revision }
+}
+
+// Shared ceilings across dynos. No reliance on client-controlled proxy headers.
+// A rejected attempt neither grows the counter nor extends the fixed window.
+const RENEWAL_LIMIT = "local count = tonumber(redis.call('GET', KEYS[1]) or '0'); if count >= tonumber(ARGV[1]) then return 0 end; if redis.call('INCR', KEYS[1]) == 1 then redis.call('EXPIRE', KEYS[1], ARGV[2]) end; return 1"
+const renewalLimits = { start: 30, exchange: 12 }
+
+export async function allowSpotifyRenewalAttempt(stage, { request = fetch } = {}) {
+  if (!Object.hasOwn(renewalLimits, stage)) throw new Error('Invalid Spotify renewal stage')
+  const result = await command([
+    'EVAL', RENEWAL_LIMIT, 1, KEY + ':limit:' + stage,
+    renewalLimits[stage], spotifyTransactionLifetime
+  ], config(), request)
+  return result === 1
 }
