@@ -13,10 +13,11 @@ const moduleUrl = 'data:text/javascript;base64,' +
   Buffer.from(rendererSource).toString('base64')
 const { createTrafficMap } = await import(moduleUrl)
 
-test('traffic casing, measured roads and station dots render above all basemap roads and labels', async () => {
+test('traffic renders over road geometry and radar but under map text labels', async () => {
   const originalFetch = globalThis.fetch
   const layers = [
     { id: 'background', type: 'background' },
+    { id: 'ascii-radar', type: 'raster' },
     { id: 'highway_minor', type: 'line' },
     { id: 'road_name', type: 'symbol', layout: { 'text-field': '{name}' } },
     { id: 'place_name', type: 'symbol', layout: { 'text-field': '{name}' } }
@@ -54,12 +55,17 @@ test('traffic casing, measured roads and station dots render above all basemap r
     })
     await controller.start()
     const layerOrder = layers.map(layer => layer.id)
-    const lastMapLabel = layerOrder.indexOf('place_name')
+    const radar = layerOrder.indexOf('ascii-radar')
+    const road = layerOrder.indexOf('highway_minor')
+    const roadName = layerOrder.indexOf('road_name')
+    const placeName = layerOrder.indexOf('place_name')
     const casing = layerOrder.indexOf('traffic-road-casing')
     const flow = layerOrder.indexOf('traffic-road-lines')
     const sensor = layerOrder.indexOf('traffic-station-circles')
-    assert.ok(lastMapLabel < casing, 'Basemap label must be below measured traffic')
+    assert.ok(radar < road, 'Geographic roads must remain visible above radar')
+    assert.ok(road < casing, 'Measured traffic must be above road geometry')
     assert.ok(casing < flow && flow < sensor, 'Traffic casing, flow and dots must be stacked in order')
+    assert.ok(sensor < roadName && roadName < placeName, 'Map text labels must remain above measured traffic')
     assert.equal(status, 'NO KEY')
   } finally {
     controller?.destroy()
