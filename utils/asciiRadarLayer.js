@@ -55,7 +55,7 @@ export function createAsciiRadarLayer({
 
   async function fetchTile(request, abortController) {
     const uri = new URL(request.url)
-    const parts = uri.pathname.match(/^\\/(\\d+)\\/(\\d+)\\/(\\d+)$/)
+    const parts = uri.pathname.match(/^\/(\d+)\/(\d+)\/(\d+)$/)
     const frame = Number(uri.searchParams.get('frame'))
     if (!parts || !Number.isInteger(frame) || !paths[frame]) {
       return { data: await createImageBitmap(makeCanvas()) }
