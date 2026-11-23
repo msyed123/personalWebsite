@@ -1,59 +1,116 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { createAsciiRadarLayer } from '../utils/asciiRadarLayer.js'
+import { createAsciiRadarLayer, radarBlendWeights } from '../utils/asciiRadarLayer.js'
 
-test('ASCII radar is inserted below geographic roads and labels', () => {
-  const calls=[]
-  const sources=new Map()
-  const layers=new Map()
-  const gl={
-    getStyle:()=>({layers:[
-      { id:'background', type:'background' },
-      { id:'water', type:'fill' },
-      { id:'highway_minor', type:'line' },
-      { id:'highway_major', type:'line' },
-      { id:'place_name', type:'symbol' }
-    ]}),
-    addSource:(id,source)=>{sources.set(id,{...source,setTiles(tiles){this.tiles=tiles}})},
+function makeGL(roads = true, onSetTiles = () => {}) {
+  const calls = [], layers = new Map(), sources = new Map()
+  const paints = []
+  const sourceListeners = new Set()
+  const style = [
+    {id:'background',type:'background'},
+    {id:'water',type:'fill'},
+    ...(roads ? [{id:'highway_minor',type:'line'},{id:'highway_major',type:'line'}] : []),
+    {id:'place_name',type:'symbol'}
+  ]
+  const gl = {
+    calls,layers,sources,paints,
+    getStyle:()=>({layers:style}),
+    addSource:(id,source) => sources.set(id,{
+      ...source,
+      setTiles(tiles){ this.tiles=tiles; onSetTiles(id,tiles,gl) }
+    }),
     addLayer:(layer,beforeId)=>{layers.set(layer.id,layer);calls.push({id:layer.id,beforeId})},
     getLayer:id=>layers.get(id),
     getSource:id=>sources.get(id),
-    setPaintProperty:(id,property,value)=>{layers.get(id).paint[property]=value},
-    removeLayer:id=>{layers.delete(id)},
-    removeSource:id=>{sources.delete(id)}
+    setPaintProperty:(id,property,value)=>{
+      layers.get(id).paint[property]=value
+      paints.push({
+        id, property, value,
+        a:layers.get('ascii-radar-a')?.paint['raster-opacity'],
+        b:layers.get('ascii-radar-b')?.paint['raster-opacity']
+      })
+    },
+    removeLayer:id=>layers.delete(id),
+    removeSource:id=>sources.delete(id),
+    isSourceLoaded:()=>true,
+    on:(_,fn)=>sourceListeners.add(fn),
+    off:(_,fn)=>sourceListeners.delete(fn),
+    emit:sourceId=>{for(const fn of sourceListeners)fn({sourceId})}
   }
-  let protocolName=null,registered=false
-  const radar=createAsciiRadarLayer({
-    gl,
-    addProtocol:(name,handler)=>{protocolName=name;registered=typeof handler==='function'},
-    removeProtocol:(name)=>{assert.equal(name,protocolName);registered=false}
-  })
-  assert.equal(radar.initialize(['/v2/radar/test'],0.55),true)
-  assert.equal(registered,true)
-  assert.equal(calls[0].id,radar.layerId)
-  assert.equal(calls[0].beforeId,'highway_minor')
-  assert.equal(layers.get(radar.layerId).paint['raster-opacity'],0.55)
-  radar.setOpacity(0.95)
-  assert.equal(layers.get(radar.layerId).paint['raster-opacity'],0.95)
-  radar.showFrame(0,0.7)
-  assert.equal(layers.get(radar.layerId).paint['raster-opacity'],0.7)
-  assert.ok(sources.get('ascii-radar-tiles').tiles[0].startsWith(protocolName+'://'))
-  radar.destroy()
-  assert.equal(registered,false)
-  assert.equal(sources.size,0)
-  assert.equal(layers.size,0)
+  return gl
+}
+
+test('crossfade weights interpolate all cell values smoothly, including frame wrap', () => {
+  assert.deepEqual(radarBlendWeights(0,0.55),{previous:0.55,next:0})
+  assert.deepEqual(radarBlendWeights(0.5,0.55),{previous:0.275,next:0.275})
+  assert.deepEqual(radarBlendWeights(1,0.55),{previous:0,next:0.55})
+  assert.deepEqual(radarBlendWeights(-10,0.7),{previous:0.7,next:0})
+  assert.deepEqual(radarBlendWeights(10,0.7),{previous:0,next:0.7})
 })
 
-test('ASCII radar never draws above the first basemap label when road layers are absent', () => {
-  let before
-  const gl={
-    getStyle:()=>({layers:[{id:'background',type:'background'},{id:'land',type:'fill'},{id:'place_label',type:'symbol'}]}),
-    addSource:()=>{},
-    addLayer:(_,id)=>{before=id},
-    getLayer:()=>null,
-    getSource:()=>null
-  }
+test('dual ASCII radar layers stay below geographic roads and crossfade old/new data', async () => {
+  const gl=makeGL()
+  let protocolName,registered=false
+  const radar=createAsciiRadarLayer({
+    gl,transitionMs:90,
+    addProtocol:(name,handler)=>{protocolName=name;registered=typeof handler==='function'},
+    removeProtocol:name=>{assert.equal(name,protocolName);registered=false}
+  })
+  assert.equal(radar.initialize(['/v2/radar/old','/v2/radar/middle','/v2/radar/new'],0.55),true)
+  assert.equal(registered,true)
+  assert.deepEqual(gl.calls.map(c=>c.beforeId),['highway_minor','highway_minor'])
+  assert.equal(gl.layers.get(radar.layerIds[0]).paint['raster-opacity'],0.55)
+  assert.equal(gl.layers.get(radar.layerIds[1]).paint['raster-opacity'],0)
+
+  await radar.showFrame(1,0.55)
+  assert.equal(gl.layers.get(radar.layerIds[0]).paint['raster-opacity'],0)
+  assert.equal(gl.layers.get(radar.layerIds[1]).paint['raster-opacity'],0.55)
+  assert.ok(gl.sources.get(radar.sourceIds[1]).tiles[0].includes('frame=1'))
+  // Both cells must be present during the blend; no instantaneous source swap.
+  assert.ok(gl.paints.some(p=>p.a>0.01 && p.b>0.01 && p.a<0.55 && p.b<0.55),
+    'Expected intermediate crossfade where both old and new precipitation are visible')
+
+  await radar.showFrame(2,0.55)
+  assert.ok(gl.sources.get(radar.sourceIds[0]).tiles[0].includes('frame=2'))
+  // Crucially last -> first uses the same interpolation, never a hard reset.
+  const paintsBeforeWrap=gl.paints.length
+  await radar.showFrame(0,0.55)
+  assert.ok(gl.paints.slice(paintsBeforeWrap).some(p=>p.a>0.01 && p.b>0.01),
+    'Expected a smooth blend on timeline wrap')
+  assert.ok(gl.sources.get(radar.sourceIds[1]).tiles[0].includes('frame=0'))
+  radar.setOpacity(0.95)
+  assert.equal(gl.layers.get(radar.layerIds[1]).paint['raster-opacity'],0.95)
+
+  radar.destroy()
+  assert.equal(registered,false)
+  assert.equal(gl.sources.size,0)
+  assert.equal(gl.layers.size,0)
+})
+
+test('a newer timeline seek replaces an obsolete tile wait', async () => {
+  let ready=true
+  const gl=makeGL(true,(_id,tiles,instance)=>{
+    if(tiles[0].includes('frame=1')) ready=false
+    if(tiles[0].includes('frame=2')) ready=true
+  })
+  gl.isSourceLoaded=()=>ready
+  const radar=createAsciiRadarLayer({
+    gl,transitionMs:30,addProtocol:()=>{},removeProtocol:()=>{}
+  })
+  assert.equal(radar.initialize(['/v2/radar/old','/v2/radar/obsolete','/v2/radar/new']),true)
+  const first=radar.showFrame(1)
+  const replacement=radar.showFrame(2)
+  await Promise.all([first,replacement])
+  assert.ok(gl.sources.get(radar.sourceIds[1]).tiles[0].includes('frame=2'),
+    'The latest seek must replace an unready frame')
+  assert.equal(gl.layers.get(radar.layerIds[1]).paint['raster-opacity'],0.7)
+  radar.destroy()
+})
+
+test('radar falls back beneath first text label if there are no road layers', () => {
+  const gl=makeGL(false)
   const radar=createAsciiRadarLayer({gl,addProtocol:()=>{},removeProtocol:()=>{}})
-  radar.initialize(['/v2/radar/test'],0.7)
-  assert.equal(before,'place_label')
+  assert.equal(radar.initialize(['/v2/radar/one']),true)
+  assert.deepEqual(gl.calls.map(c=>c.beforeId),['place_name','place_name'])
+  radar.destroy()
 })
