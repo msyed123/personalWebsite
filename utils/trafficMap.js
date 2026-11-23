@@ -123,9 +123,12 @@ export function createTrafficMap({ gl, leafletMap, onStatus, onReady, onSources,
   async function start() {
     gl.addSource(ROAD_ID, { type: 'geojson', data: emptyTrafficCollection() })
     gl.addSource(SENSOR_ID, { type: 'geojson', data: emptyTrafficCollection() })
-    // Traffic is operational data, so append it above all OpenFreeMap geometry
-    // AND text labels. The dark casing separates measured flow from road names
-    // and the pixel-art radar without allowing either to obscure traffic.
+    // Place observed traffic above basemap road geometry, but underneath road
+    // and place-name labels. The synthetic preview roads may not follow the
+    // streets precisely; that is a mock geometry issue, not layer ordering.
+    const firstLabel = gl.getStyle().layers.find(
+      (layer) => layer.type === 'symbol' && layer.layout?.['text-field']
+    )?.id
     const visibleTraffic = ['!=', ['get', 'condition'], 'unknown']
     gl.addLayer({
       id: 'traffic-road-casing', type: 'line', source: ROAD_ID, filter: visibleTraffic,
@@ -135,7 +138,7 @@ export function createTrafficMap({ gl, leafletMap, onStatus, onReady, onSources,
         'line-width': ['interpolate', ['linear'], ['zoom'], 6, 4, 10, 7, 13, 10],
         'line-opacity': 1
       }
-    })
+    }, firstLabel)
     gl.addLayer({
       id: 'traffic-road-lines', type: 'line', source: ROAD_ID, filter: visibleTraffic,
       layout: { 'line-cap': 'round', 'line-join': 'round' },
@@ -144,7 +147,7 @@ export function createTrafficMap({ gl, leafletMap, onStatus, onReady, onSources,
         'line-width': ['interpolate', ['linear'], ['zoom'], 6, 2.5, 10, 4.5, 13, 7],
         'line-opacity': 1
       }
-    })
+    }, firstLabel)
     gl.addLayer({
       id: 'traffic-station-circles', type: 'circle', source: SENSOR_ID,
       paint: {
@@ -154,7 +157,7 @@ export function createTrafficMap({ gl, leafletMap, onStatus, onReady, onSources,
         'circle-stroke-width': 1.5,
         'circle-opacity': ['case', ['==', ['get', 'condition'], 'unknown'], 0.3, 0.95]
       }
-    })
+    }, firstLabel)
     try {
       const response = await fetch('/api/traffic/status')
       if (!response.ok) throw new Error('Traffic capabilities unavailable')
