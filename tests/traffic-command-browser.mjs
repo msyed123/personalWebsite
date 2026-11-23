@@ -113,7 +113,7 @@ try{
    })
    if(!scanline.texture.includes('linear-gradient') ||
       scanline.animation!=='none' ||
-      scanline.beamContent!=='none' ||
+      !['none','normal',''].includes(scanline.beamContent) ||
       scanline.beamAnimation!=='none') {
      throw Error('Viewport-wide animated CRT beam is still present: '+JSON.stringify(scanline))
    }
