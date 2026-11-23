@@ -259,11 +259,11 @@ try{
    await page.route('**/api/spotify',route=>route.fulfill({
      status:200,contentType:'application/json',
      body:JSON.stringify({code:'REAUTHORIZE',
-       error:'Spotify authorization expired. The site owner must reconnect Spotify.'})
+       error:'Spotify authorization expired. Site owner: run spotify connect to reconnect.'})
    }))
    await input.fill('nowplaying')
    await input.press('Enter')
-   await page.getByText('[SPOTIFY] Spotify authorization expired. The site owner must reconnect Spotify.').waitFor({timeout:5000})
+   await page.getByText('[SPOTIFY] Spotify authorization expired. Site owner: run spotify connect to reconnect.').waitFor({timeout:5000})
    if(await page.locator('.spotify-card').count()) {
      throw Error('Nowplaying rendered stale Spotify card after auth expiry')
    }
