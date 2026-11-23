@@ -6,7 +6,11 @@ import { emptyTrafficCollection, normalizeRoadFeature } from '~/shared/traffic.j
 export async function fetchTomTomRoadTile(z: number, x: number, y: number, key: string) {
   const url = `https://api.tomtom.com/maps/orbis/traffic/flow/vector/tile/${z}/${x}/${y}?apiVersion=2`
   const response = await fetch(url, {
-    headers: { 'TomTom-Api-Key': key, Accept: 'application/vnd.mapbox-vector-tile' },
+    headers: {
+      'TomTom-Api-Key': key,
+      'TomTom-Api-Version': '2',
+      Accept: 'application/vnd.mapbox-vector-tile'
+    },
     signal: AbortSignal.timeout(10000)
   })
   if (response.status === 204) return emptyTrafficCollection()
