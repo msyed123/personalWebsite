@@ -33,7 +33,7 @@
 
       <!-- Weather card output -->
       <div v-else-if="weatherData" class="w-full pb-2 mb-2 border-b border-terminal-amber-dim/20 flex justify-center">
-        <WeatherCard :weatherData="weatherData" @close="clearScreen" />
+        <WeatherCard :weatherData="weatherData" :mode="activeCardMode" @close="clearScreen" />
       </div>
 
       <!-- Games output -->
@@ -77,6 +77,7 @@ const route = useRoute()
 
 const activeGame = ref<string | null>(null)
 const weatherData = ref<any>(null)
+const activeCardMode = ref<'weather' | 'traffic'>('weather')
 
 // --- Spotify state ---
 const spotifyData = ref<any>(null)
@@ -129,6 +130,7 @@ function clearScreen () {
   cmdOutput.value = ''
   activeGame.value = null
   weatherData.value = null
+  activeCardMode.value = 'weather'
 }
 
 onUnmounted(stopSpotifyPolling)
@@ -172,6 +174,7 @@ const handleCommand = () => {
       nowplaying: 'NAME\n    nowplaying - spotify listener status\nSYNOPSIS\n    nowplaying\nDESCRIPTION\n    Hooks into the server to fetch the exact song Mamoon is currently listening to on Spotify, along with an animated progress bar.',
       chmod: 'NAME\n    chmod - change file modes/themes\nSYNOPSIS\n    chmod\nDESCRIPTION\n    A custom toggle that switches the environment from a dark CRT phosphor theme to a light paper aesthetic.',
       weather: 'NAME\n    weather - get real-time forecast\nSYNOPSIS\n    weather [location]\nDESCRIPTION\n    Contacts Open-Meteo services to pinpoint the exact location and fetch atmospheric temperature readings with ASCII display.',
+      traffic: 'NAME\n    traffic - live road-flow and highway-sensor monitor\nSYNOPSIS\n    traffic [location]\nDESCRIPTION\n    Opens a standalone traffic map without precipitation or weather data. Uses available TomTom/WSDOT feeds.',
       snake: 'NAME\n    snake - launch snake simulation\nSYNOPSIS\n    snake\nDESCRIPTION\n    A fully-playable clone of the classic cell-arcade game right inside the footer, optimized for keyboard and standard DOS block-graphics.',
       tetris: 'NAME\n    tetris - launch tetris simulation\nSYNOPSIS\n    tetris\nDESCRIPTION\n    A block-dropping puzzle game clone leveraging rich ANSI color codes. Highly addictive.'
     }
@@ -185,7 +188,7 @@ const handleCommand = () => {
   }
 
   if (input === 'help') {
-    cmdOutput.value = `Available commands:\n- cd <dir>   : Navigate to directory\n- pwd        : Print working directory\n- ls         : List directories\n- clear      : Clear output\n- date       : Show current date\n- nowplaying : Show currently / last playing track\n- chmod      : Toggle dark/light mode\n- weather    : Show weather (e.g. weather <city>)\n- snake      : Play Snake (desktop only)\n- tetris     : Play Tetris (desktop only)\n- man <cmd>  : Read manual page for command`
+    cmdOutput.value = `Available commands:\n- cd <dir>   : Navigate to directory\n- pwd        : Print working directory\n- ls         : List directories\n- clear      : Clear output\n- date       : Show current date\n- nowplaying : Show currently / last playing track\n- chmod      : Toggle dark/light mode\n- weather    : Show weather (e.g. weather <city>)\n- traffic    : Show road traffic (e.g. traffic <city>)\n- snake      : Play Snake (desktop only)\n- tetris     : Play Tetris (desktop only)\n- man <cmd>  : Read manual page for command`
     return
   }
 
@@ -205,9 +208,11 @@ const handleCommand = () => {
     return
   }
   
-  if (input.startsWith('weather')) {
+  const isWeatherCommand = input === 'weather' || input.startsWith('weather ')
+  const isTrafficCommand = input === 'traffic' || input.startsWith('traffic ')
+  if (isWeatherCommand || isTrafficCommand) {
     const loc = input.split(' ').slice(1).join(' ') || 'Seattle'
-    cmdOutput.value = `Fetching weather for ${loc}...`
+    cmdOutput.value = `Locating ${loc}...`
     $fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(loc)}&count=1&language=en&format=json`)
       .then((geo: any) => {
         if (!geo.results || geo.results.length === 0) {
@@ -215,24 +220,28 @@ const handleCommand = () => {
           return
         }
         const { latitude, longitude, name, admin1, country_code } = geo.results[0]
+        const mapLocation = {
+          lat: latitude,
+          lon: longitude,
+          location: `${name}, ${admin1 || country_code || ''}`.replace(/,\\s*$/, '')
+        }
+        if (isTrafficCommand) {
+          activeCardMode.value = 'traffic'
+          weatherData.value = mapLocation
+          cmdOutput.value = ''
+          return
+        }
         return $fetch(`https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,weather_code&temperature_unit=fahrenheit&wind_speed_unit=mph`).then((weather: any) => {
           const temp = Math.round(weather.current.temperature_2m)
           const code = Number(weather.current.weather_code)
           const p = WMO_CODES[code as keyof typeof WMO_CODES] || 'Unknown'
-
-          weatherData.value = {
-            temp,
-            condition: p,
-            location: `${name}, ${admin1 || country_code || ''}`.replace(/,\s*$/, ''),
-            code,
-            lat: latitude,
-            lon: longitude
-          }
+          activeCardMode.value = 'weather'
+          weatherData.value = { ...mapLocation, temp, condition: p, code }
           cmdOutput.value = ''
         })
       })
       .catch((e: any) => {
-        cmdOutput.value = `Error fetching weather: ${e.message}`
+        cmdOutput.value = `Error fetching ${isTrafficCommand ? 'traffic location' : 'weather'}: ${e.message}`
       })
     return
   }
