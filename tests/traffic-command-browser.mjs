@@ -39,16 +39,19 @@ try{
    let radarRequests=0
    page.on('pageerror',err=>errors.push(String(err.message)))
    page.on('request',req=>{if(req.url().includes('rainviewer.com'))radarRequests++})
-   await page.route('https://geocoding-api.open-meteo.com/v1/search**',route=>{
-     const city = new URL(route.request().url()).searchParams.get('name') || 'Seattle'
-     const place=city.toLowerCase()==='boston'
-       ? {latitude:42.3601,longitude:-71.0589,name:'Boston',admin1:'Massachusetts'}
-       : {latitude:47.6062,longitude:-122.3321,name:'Seattle',admin1:'Washington'}
-     return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({results:[place]})})
+   // Both terminal commands now use the same-origin Nitro proxy, not direct
+   // browser requests to geocoding/forecast providers.
+   await page.route('**/api/terminal-lookup**', route => {
+     const query = new URL(route.request().url()).searchParams
+     const city = query.get('city') || 'Seattle'
+     const place = city.toLowerCase() === 'boston'
+       ? { lat:42.3601, lon:-71.0589, location:'Boston, Massachusetts' }
+       : { lat:47.6062, lon:-122.3321, location:'Seattle, Washington' }
+     const body = query.get('mode') === 'weather'
+       ? { ...place, temp:48, code:3 }
+       : place
+     return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(body)})
    })
-   await page.route('https://api.open-meteo.com/v1/forecast**',route=>route.fulfill({
-     status:200,contentType:'application/json',body:JSON.stringify({current:{temperature_2m:47.8,weather_code:3}})
-   }))
    await page.route('https://api.rainviewer.com/public/weather-maps.json',route=>route.fulfill({
      status:200,contentType:'application/json',
      body:JSON.stringify({radar:{past:[{path:'/v2/radar/test-1',time:1763870700}]}})
