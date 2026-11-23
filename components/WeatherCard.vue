@@ -23,7 +23,7 @@
     <!-- Map Container -->
     <div 
       ref="mapContainer" 
-      class="w-full h-48 sm:h-64 border border-terminal-amber-dim/50 bg-terminal-black overflow-hidden map-crt-effect relative"
+      class="w-full h-72 sm:h-64 border border-terminal-amber-dim/50 bg-terminal-black overflow-hidden map-crt-effect relative"
     >
       <!-- Explicit, keyboard-accessible traffic toggle. Radar is never affected. -->
       <div class="absolute top-2 right-2 z-[999] flex flex-col items-end gap-1">
@@ -40,7 +40,7 @@
           {{ trafficStatus }}<span v-if="trafficLastUpdate"> · FETCH {{ trafficLastUpdate }}</span>
         </div>
       </div>
-      <div v-if="trafficVisible && (trafficStatus === 'LIVE' || trafficStatus === 'DEGRADED')" class="absolute top-[72px] right-2 z-[999] map-control-bg border border-terminal-amber-dim/40 px-2 py-1 text-[9px] text-terminal-amber-dim text-right">
+      <div v-if="trafficVisible && (trafficStatus === 'LIVE' || trafficStatus === 'DEGRADED')" class="hidden sm:block absolute top-[72px] right-2 z-[999] map-control-bg border border-terminal-amber-dim/40 px-2 py-1 text-[9px] text-terminal-amber-dim text-right">
         <span class="text-green-500">●</span> FLOW
         <span class="text-amber-400">●</span> SLOW
         <span class="text-red-500">●</span> JAM
@@ -60,6 +60,19 @@
       <div v-if="timestamps.length > 0" class="absolute bottom-2 right-2 z-[999] map-control-bg px-2 py-1.5 border border-terminal-amber-dim/50 text-xs text-terminal-amber font-bold">
         {{ formatTime(timestamps[currentFrame]) }}
       </div>
+    </div>
+
+    <!-- On phones, keep the traffic legend outside the map viewport. -->
+    <div
+      v-if="trafficVisible && (trafficStatus === 'LIVE' || trafficStatus === 'DEGRADED')"
+      class="sm:hidden flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-terminal-amber-dim tracking-wide"
+      aria-label="Traffic legend"
+    >
+      <span><span class="text-green-500">●</span> FLOW</span>
+      <span><span class="text-amber-400">●</span> SLOW</span>
+      <span><span class="text-red-500">●</span> JAM</span>
+      <span><span class="text-gray-300">●</span> CLOSED</span>
+      <span v-if="trafficStationsEnabled" class="opacity-80">SENSORS: DOTS</span>
     </div>
 
     <div class="text-[10px] sm:text-xs text-terminal-amber-dim/80 flex flex-wrap gap-x-3 justify-between tracking-widest uppercase mt-[-4px]">
