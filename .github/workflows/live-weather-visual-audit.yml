@@ -1,0 +1,21 @@
+name: Production weather card visual audit
+on:
+  push:
+    branches: [diagnostics/live-traffic-20261123]
+jobs:
+  screenshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm install --no-save playwright
+      - run: npx playwright install --with-deps chromium
+      - run: node .github/scripts/audit-live-weather.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: public-live-weather-visual-audit
+          path: diagnostic-output/
