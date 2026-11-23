@@ -42,7 +42,7 @@ function toTrack(track, isPlaying, progressMs) {
 }
 
 export async function getSpotifyNowPlaying({
-  clientId, clientSecret, refreshToken, request = fetch
+  clientId, clientSecret, refreshToken, onRefreshToken, request = fetch
 }) {
   if (!clientId || !clientSecret || !refreshToken) {
     return problem('NOT_CONFIGURED', 'Spotify is not configured on this site.')
@@ -71,6 +71,13 @@ export async function getSpotifyNowPlaying({
       return unavailable
     }
     if (!tokenData?.access_token) return unavailable
+    // Spotify may rotate the token during refresh. Preserve it durably before
+    // using the access token so the public card survives future requests.
+    if (typeof tokenData.refresh_token === 'string' &&
+        tokenData.refresh_token && tokenData.refresh_token !== refreshToken &&
+        typeof onRefreshToken === 'function') {
+      await onRefreshToken(tokenData.refresh_token)
+    }
 
     const headers = { Authorization: 'Bearer ' + tokenData.access_token }
     const current = await request('https://api.spotify.com/v1/me/player/currently-playing', { headers })
