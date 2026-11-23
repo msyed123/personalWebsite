@@ -2,7 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
   classifyRelativeSpeed, normalizeRoadFeature, normalizeStationFeature,
-  parseWsdotTime, tileCoordinate, visibleTileCoordinates, emptyTrafficCollection
+  parseWsdotTime, tileCoordinate, visibleTileCoordinates, budgetedRoadTileCoordinates, emptyTrafficCollection
 } from '../shared/traffic.js'
 
 test('speed brackets map to the site traffic palette', () => {
@@ -80,4 +80,16 @@ test('visible tile grid limits calls and follows Web Mercator', () => {
   assert.ok(tiles.length >= 1 && tiles.length <= 4)
   assert.equal(visibleTileCoordinates({ west: -179, south: -80, east: 179, north: 80 }, 10, 4).length, 0)
   assert.deepEqual(emptyTrafficCollection(), { type: 'FeatureCollection', features: [] })
+})
+
+
+test('wide Seattle traffic maps keep full coverage without exceeding the tile limit', () => {
+  const wide = { west: -122.5082, east: -122.1560, south: 47.5583, north: 47.6541 }
+  assert.equal(visibleTileCoordinates(wide, 12, 100).length, 15)
+  assert.equal(visibleTileCoordinates(wide, 12).length, 0)
+  const covered = budgetedRoadTileCoordinates(wide, 12)
+  assert.equal(covered.length, 6)
+  assert.deepEqual(covered, visibleTileCoordinates(wide, 11))
+  assert.deepEqual(budgetedRoadTileCoordinates(wide, 11), covered)
+  assert.deepEqual(budgetedRoadTileCoordinates(wide, 5), [])
 })
