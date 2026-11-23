@@ -136,14 +136,20 @@ try{
      el.dispatchEvent(new Event('input',{bubbles:true}))
    })
    await page.waitForFunction(() => document.querySelector('input[aria-label="Scrub radar timeline"]')?.value==='2')
-   await page.waitForTimeout(1200)
+   // The scrubber may lead a tile load. Wait for the selected frame to be
+   // rendered, not an arbitrary time delay.
+   await page.waitForFunction(() =>
+     document.querySelector('[aria-label="Radar timeline"]')?.getAttribute('aria-busy') === 'false',
+     null, {timeout:20000})
    const weatherCard=page.locator('[class*="max-w-2xl"]').last()
    await weatherCard.screenshot({path:`preview-output/weather-timeline-${name}.png`})
    await page.getByRole('button',{name:'Next radar frame'}).click()
    await page.waitForFunction(() => document.querySelector('input[aria-label="Scrub radar timeline"]')?.value==='0')
    await page.waitForTimeout(350)
    await weatherCard.screenshot({path:`preview-output/weather-timeline-midfade-${name}.png`})
-   await page.waitForTimeout(850)
+   await page.waitForFunction(() =>
+     document.querySelector('[aria-label="Radar timeline"]')?.getAttribute('aria-busy') === 'false',
+     null, {timeout:20000})
    await weatherCard.screenshot({path:`preview-output/weather-timeline-wrapped-${name}.png`})
    if(radarRequests < 2)throw Error('ASCII radar was never requested inside MapLibre: '+radarRequests)
    if(errors.length)throw Error('Browser errors: '+JSON.stringify(errors))
