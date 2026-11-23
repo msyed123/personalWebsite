@@ -3,30 +3,50 @@
     <button @click="$emit('close')" class="absolute top-2 right-3 z-[999] text-terminal-amber bg-terminal-black/80 px-2 py-0 border border-terminal-amber-dim hover:text-red-500 hover:border-red-500 transition-colors cursor-pointer">[x]</button>
     
     <!-- Weather Data Top Bar -->
-    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-2 w-full pt-1 pr-10">
-      
-      <div class="flex items-center gap-3">
-        <!-- ASCII Art container -->
-        <div class="flex-shrink-0 whitespace-pre leading-tight font-bold text-xs sm:text-xs" :class="artColor">
+    <div class="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-2 items-end w-full pt-1 pr-8">
+      <div class="flex items-center gap-3 min-w-0">
+        <!-- Keep the original ASCII art, but allow long location names to wrap. -->
+        <div class="flex-shrink-0 whitespace-pre leading-tight font-bold text-xs" :class="artColor">
 {{ asciiArt }}
         </div>
-        <div class="pt-2">
+        <div class="min-w-0 flex-1 pt-2">
           <div class="text-xs uppercase tracking-widest text-terminal-amber-dim mb-1" :class="{'animate-pulse': isPlaying}">LIVE RADAR SIGNAL</div>
-          <div class="text-xl sm:text-2xl font-bold text-terminal-blue truncate">{{ weatherData.location }}</div>
+          <div class="text-lg sm:text-xl font-bold text-terminal-blue leading-tight break-words">{{ weatherData.location }}</div>
         </div>
       </div>
-      
-      <div class="flex items-end gap-3 mt-2 sm:mt-0">
-        <span class="text-3xl sm:text-4xl text-terminal-amber font-light">{{ weatherData.temp }}°</span>
-        <span class="text-sm text-terminal-amber-dim uppercase pb-1 sm:pb-2 tracking-wide">{{ weatherData.condition }}</span>
+      <div class="flex items-end gap-2 justify-start sm:justify-end shrink-0 sm:pb-0.5">
+        <span class="text-3xl sm:text-4xl text-terminal-amber font-light whitespace-nowrap leading-none">{{ weatherData.temp }}°</span>
+        <span class="text-xs sm:text-sm text-terminal-amber-dim uppercase pb-0.5 whitespace-nowrap">{{ weatherData.condition }}</span>
       </div>
     </div>
 
     <!-- Map Container -->
     <div 
       ref="mapContainer" 
-      class="w-full h-48 sm:h-64 border border-terminal-amber-dim/50 bg-terminal-black overflow-hidden map-crt-effect relative"
+      class="w-full h-72 sm:h-64 border border-terminal-amber-dim/50 bg-terminal-black overflow-hidden map-crt-effect relative"
     >
+      <!-- Explicit, keyboard-accessible traffic toggle. Radar is never affected. -->
+      <div class="absolute top-2 right-2 z-[999] flex flex-col items-end gap-1">
+        <button
+          type="button"
+          @click="toggleTraffic"
+          :disabled="!trafficLayerReady"
+          :aria-pressed="trafficVisible"
+          :aria-label="trafficVisible ? 'Turn traffic overlay off' : 'Turn traffic overlay on'"
+          class="map-control-bg border px-2.5 py-1.5 font-bold text-[10px] tracking-widest transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-terminal-blue"
+          :class="trafficLayerReady ? (trafficVisible ? 'border-terminal-blue text-terminal-blue hover:text-terminal-amber' : 'border-terminal-amber-dim text-terminal-amber hover:text-terminal-blue') : 'border-terminal-amber-dim/40 text-terminal-amber-dim/60 cursor-not-allowed'"
+        >TRAFFIC {{ trafficLayerReady ? (trafficVisible ? '[ON]' : '[OFF]') : '[NO FEED]' }}</button>
+        <div v-if="trafficLayerReady && trafficVisible" class="map-control-bg border border-terminal-amber-dim/40 px-2 py-1 text-[9px] tracking-wide text-terminal-amber-dim">
+          {{ trafficStatus }}<span v-if="trafficLastUpdate"> · FETCH {{ trafficLastUpdate }}</span>
+        </div>
+      </div>
+      <div v-if="trafficVisible && (trafficStatus === 'LIVE' || trafficStatus === 'DEGRADED')" class="hidden sm:block absolute top-[72px] right-2 z-[999] map-control-bg border border-terminal-amber-dim/40 px-2 py-1 text-[9px] text-terminal-amber-dim text-right">
+        <span class="text-green-500">●</span> FLOW
+        <span class="text-amber-400">●</span> SLOW
+        <span class="text-red-500">●</span> JAM
+        <span class="text-gray-300">●</span> CLOSED
+        <div v-if="trafficStationsEnabled" class="opacity-80">SENSOR READINGS: DOTS</div>
+      </div>
       <!-- Controls overlays -->
       <div class="absolute bottom-2 left-2 z-[999] flex map-control-bg border border-terminal-amber-dim/50 text-xs text-terminal-amber font-bold">
         <button @click="togglePlay" class="hover:text-terminal-blue transition-colors focus:outline-none w-16 text-left px-3 py-1.5">{{ isPlaying ? '|| PAUSE' : '► PLAY' }}</button>
@@ -42,9 +62,22 @@
       </div>
     </div>
 
-    <div class="text-[10px] sm:text-xs text-terminal-amber-dim/50 flex justify-between tracking-widest uppercase mt-[-4px]">
+    <!-- On phones, keep the traffic legend outside the map viewport. -->
+    <div
+      v-if="trafficVisible && (trafficStatus === 'LIVE' || trafficStatus === 'DEGRADED')"
+      class="sm:hidden flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-terminal-amber-dim tracking-wide"
+      aria-label="Traffic legend"
+    >
+      <span><span class="text-green-500">●</span> FLOW</span>
+      <span><span class="text-amber-400">●</span> SLOW</span>
+      <span><span class="text-red-500">●</span> JAM</span>
+      <span><span class="text-gray-300">●</span> CLOSED</span>
+      <span v-if="trafficStationsEnabled" class="opacity-80">SENSORS: DOTS</span>
+    </div>
+
+    <div class="text-[10px] sm:text-xs text-terminal-amber-dim/80 flex flex-wrap gap-x-3 justify-between tracking-widest uppercase mt-[-4px]">
       <span>> Source: Rainviewer / Open-Meteo</span>
-      <span>SYS.OP.OK</span>
+      <span><a href="https://openfreemap.org/" target="_blank" rel="noopener noreferrer" class="underline">OpenFreeMap</a> © OpenMapTiles / <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer" class="underline">OpenStreetMap</a><template v-if="trafficRoadsEnabled"> / Traffic © <a href="https://www.tomtom.com/" target="_blank" rel="noopener noreferrer" class="underline">TomTom</a></template><template v-if="trafficStationsEnabled"> / <a href="https://wsdot.wa.gov/traffic/api/" target="_blank" rel="noopener noreferrer" class="underline">WSDOT</a></template></span>
     </div>
   </div>
 </template>
@@ -88,6 +121,17 @@ const radarLayers = shallowRef([])
 const timestamps = ref([])
 const currentFrame = ref(0)
 const isPlaying = ref(false)
+// Keep precipitation vivid alone, but let congested roads remain visible beneath rain.
+const RADAR_OPACITY_SOLO = 0.95
+const RADAR_OPACITY_WITH_TRAFFIC = 0.55
+const trafficStatus = ref('NO KEY')
+const trafficVisible = ref(false)
+const trafficLayerReady = ref(false)
+const trafficRoadsEnabled = ref(false)
+const trafficStationsEnabled = ref(false)
+const trafficLastUpdate = ref('')
+let trafficController = null
+let weatherMapDisposed = false
 let animationInterval = null
 
 function formatTime(unixTime) {
@@ -119,8 +163,10 @@ function showFrame(index) {
   if (radarLayers.value.length === 0) return;
   // Hide all
   radarLayers.value.forEach(layer => layer.setOpacity(0));
-  // Show target
-  radarLayers.value[index].setOpacity(1); // Grid layer opacity native works weirdly sometimes, 1 is best
+  // The radar tiles remain pixelated; only their composite opacity changes.
+  radarLayers.value[index].setOpacity(
+    trafficVisible.value ? RADAR_OPACITY_WITH_TRAFFIC : RADAR_OPACITY_SOLO
+  );
   currentFrame.value = index;
 }
 
@@ -136,6 +182,13 @@ function prevFrame() {
   showFrame(prev);
 }
 
+function toggleTraffic() {
+  if (weatherMapDisposed || !trafficController || !trafficLayerReady.value) return
+  trafficVisible.value = !trafficVisible.value
+  trafficController.setVisible(trafficVisible.value)
+  showFrame(currentFrame.value)
+}
+
 function zoomIn() {
   if (mapInstance.value) mapInstance.value.zoomIn();
 }
@@ -147,12 +200,17 @@ function zoomOut() {
 onMounted(async () => {
   // Dynamically import Leaflet so it doesn't break Nuxt 3 SSR
   const L = (await import('leaflet')).default;
+  const { maplibreGL } = await import('@maplibre/maplibre-gl-leaflet');
+  const { setWorkerUrl } = await import('maplibre-gl');
+  const { default: workerUrl } = await import('maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url');
+  setWorkerUrl(workerUrl);
   await import('leaflet/dist/leaflet.css');
+  await import('maplibre-gl/dist/maplibre-gl.css');
 
   if (!mapContainer.value) return;
 
-  const lat = props.weatherData.lat || 29.6516;
-  const lon = props.weatherData.lon || -82.3248;
+  const lat = props.weatherData.lat ?? 47.6062;
+  const lon = props.weatherData.lon ?? -122.3321;
 
   // Set default zoom dramatically closer to 10
   mapInstance.value = L.map(mapContainer.value, {
@@ -166,12 +224,81 @@ onMounted(async () => {
     keyboard: false,
     minZoom: 4,
     maxZoom: 13
-  }).setView([lat, lon], 10); 
+  }).setView([lat, lon], 11); 
 
-  // CartoDB Dark Matter basemap looks pristine for a CLI environment
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-    maxZoom: 19
+  // OpenFreeMap vector base -> traffic lines -> pixelated RainViewer radar.
+  // Traffic is rendered by MapLibre within the basemap; radar remains in Leaflet.
+  mapInstance.value.createPane('radarPane');
+  mapInstance.value.getPane('radarPane').style.zIndex = '450';
+  mapInstance.value.getPane('radarPane').style.pointerEvents = 'none';
+
+  // Vector tiles are public and keyless. The Leaflet bridge preserves the existing GridLayer radar.
+  const baseMap = maplibreGL({
+    style: 'https://tiles.openfreemap.org/styles/dark',
+    interactive: false,
+    attributionControl: false
   }).addTo(mapInstance.value);
+
+  // The WebGL map has its own label fonts: CSS font-family alone cannot change them.
+  // MapLibre 6 supports local glyphs when the remote glyph URL is unset. The same
+  // JetBrains Mono face already loaded by the Nuxt app can then render map labels.
+  const gl = baseMap.getMaplibreMap();
+  gl.once('load', async () => {
+    if (weatherMapDisposed) return;
+    try {
+      await document.fonts.load('12px "JetBrains Mono"');
+      if (weatherMapDisposed) return;
+      gl.setGlyphs(null);
+    } catch (error) {
+      // Leave the provider's default glyph stack usable if local font loading fails.
+      console.warn('[MAP] Local map font unavailable; using hosted glyphs', error);
+    }
+    for (const layer of gl.getStyle().layers || []) {
+      const id = layer.id;
+      if (id === 'background' && layer.type === 'background') gl.setPaintProperty(id, 'background-color', '#090c0f');
+      if (id === 'water' && layer.type === 'fill') gl.setPaintProperty(id, 'fill-color', '#111e27');
+      if (id === 'waterway' && layer.type === 'line') gl.setPaintProperty(id, 'line-color', '#1b3545');
+      // Neutral basemap roads are context, not traffic observations.
+      // Keep amber for labels/UI; reserve saturated green/amber/red for measured traffic.
+      if (layer.type === 'line' && /^highway_(major|minor|motorway)/.test(id)) {
+        const isCasing = id.includes('casing');
+        const isMinor = id.includes('minor');
+        gl.setPaintProperty(id, 'line-color',
+          isCasing ? '#202830' : (isMinor ? '#29343d' : '#35414a'));
+      }
+      if (layer.type === 'symbol' && layer.layout?.['text-field']) {
+        if (gl.getGlyphs() === null) {
+          gl.setLayoutProperty(id, 'text-font', ['JetBrains Mono', 'Courier New', 'monospace']);
+        }
+        gl.setPaintProperty(id, 'text-color', /road|highway|place|label/.test(id) ? '#c28b33' : '#8c713f');
+        gl.setPaintProperty(id, 'text-halo-color', '#090c0f');
+        gl.setPaintProperty(id, 'text-halo-width', 1.25);
+        gl.setPaintProperty(id, 'text-opacity', 0.9);
+      }
+    }
+    const { createTrafficMap } = await import('~/utils/trafficMap.js');
+    if (weatherMapDisposed) return;
+    trafficController = createTrafficMap({
+      gl,
+      leafletMap: mapInstance.value,
+      onStatus: (status) => { trafficStatus.value = status },
+      onReady: (ready) => {
+        trafficLayerReady.value = ready;
+        trafficVisible.value = ready;
+        showFrame(currentFrame.value);
+      },
+      onSources: ({ roads, stations }) => {
+        trafficRoadsEnabled.value = roads;
+        trafficStationsEnabled.value = stations;
+      },
+      onUpdate: (iso) => {
+        trafficLastUpdate.value = iso
+          ? new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          : '';
+      }
+    });
+    trafficController.start();
+  });
 
   // Define the custom ASCII Canvas GridLayer
   const AsciiRadarLayer = L.GridLayer.extend({
@@ -321,6 +448,7 @@ onMounted(async () => {
       const layers = past.map((p, idx) => {
         const layer = new AsciiRadarLayer({
           tileSize: 256,
+          pane: 'radarPane',
           opacity: 0,
           zIndex: 10 + idx,
           rainPath: p.path
@@ -341,6 +469,9 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  weatherMapDisposed = true;
+  if (trafficController) trafficController.destroy();
+  trafficController = null;
   stopAnimation();
   if (mapInstance.value) {
     mapInstance.value.remove();

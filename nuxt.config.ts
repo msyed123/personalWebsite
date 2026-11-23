@@ -7,6 +7,11 @@ export default defineNuxtConfig({
   nitro: {
     preset: 'node-server'
   },
+  runtimeConfig: {
+    // Set NUXT_TOMTOM_TRAFFIC_KEY in the server environment.
+    tomtomTrafficKey: '',
+    wsdotAccessCode: ''
+  },
   experimental: {
     asyncContext: true
   },
