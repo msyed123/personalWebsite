@@ -83,6 +83,9 @@ const route = useRoute()
 const activeGame = ref<string | null>(null)
 const weatherData = ref<any>(null)
 const activeCardMode = ref<'weather' | 'traffic'>('weather')
+// Cancel superseded lookups so an old response cannot reopen a dismissed card.
+let lookupRequestId = 0
+let lookupController: AbortController | null = null
 
 // --- Spotify state ---
 const spotifyData = ref<any>(null)
@@ -130,6 +133,9 @@ function stopSpotifyPolling () {
 }
 
 function clearScreen () {
+  lookupRequestId++
+  lookupController?.abort()
+  lookupController = null
   stopSpotifyPolling()
   spotifyData.value = null
   cmdOutput.value = ''
@@ -217,36 +223,48 @@ const handleCommand = () => {
   const isTrafficCommand = input === 'traffic' || input.startsWith('traffic ')
   if (isWeatherCommand || isTrafficCommand) {
     const loc = input.split(' ').slice(1).join(' ') || 'Seattle'
+    const requestId = lookupRequestId
+    const controller = new AbortController()
+    lookupController = controller
+    const timeout = setTimeout(() => controller.abort(), 20_000)
+
     cmdOutput.value = `Locating ${loc}...`
-    $fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(loc)}&count=1&language=en&format=json`)
-      .then((geo: any) => {
-        if (!geo.results || geo.results.length === 0) {
-          cmdOutput.value = `Location not found: ${loc}`
-          return
-        }
-        const { latitude, longitude, name, admin1, country_code } = geo.results[0]
-        const mapLocation = {
-          lat: latitude,
-          lon: longitude,
-          location: `${name}, ${admin1 || country_code || ''}`.replace(/,\s*$/, '')
-        }
+    // Our Nitro server performs both upstream requests, so the browser never
+    // needs a direct connection to the Open-Meteo forecast API.
+    $fetch<any>('/api/terminal-lookup', {
+      query: { city: loc, mode: isTrafficCommand ? 'traffic' : 'weather' },
+      signal: controller.signal
+    })
+      .then((data: any) => {
+        if (requestId !== lookupRequestId) return
         if (isTrafficCommand) {
           activeCardMode.value = 'traffic'
-          weatherData.value = mapLocation
-          cmdOutput.value = ''
-          return
-        }
-        return $fetch(`https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,weather_code&temperature_unit=fahrenheit&wind_speed_unit=mph`).then((weather: any) => {
-          const temp = Math.round(weather.current.temperature_2m)
-          const code = Number(weather.current.weather_code)
-          const p = WMO_CODES[code as keyof typeof WMO_CODES] || 'Unknown'
+          weatherData.value = {
+            lat: data.lat, lon: data.lon, location: data.location
+          }
+        } else {
+          const code = Number(data.code)
+          const condition = WMO_CODES[code as keyof typeof WMO_CODES] || 'Unknown'
           activeCardMode.value = 'weather'
-          weatherData.value = { ...mapLocation, temp, condition: p, code }
-          cmdOutput.value = ''
-        })
+          weatherData.value = {
+            lat: data.lat, lon: data.lon, location: data.location,
+            temp: data.temp, code, condition
+          }
+        }
+        cmdOutput.value = ''
       })
-      .catch((e: any) => {
-        cmdOutput.value = `Error fetching ${isTrafficCommand ? 'traffic location' : 'weather'}: ${e.message}`
+      .catch((error: any) => {
+        if (requestId !== lookupRequestId) return
+        const timedOut = controller.signal.aborted
+        const description = timedOut
+          ? 'Request timed out. Try again.'
+          : (error?.data?.statusMessage || error?.statusMessage ||
+              'Service temporarily unavailable. Try again.')
+        cmdOutput.value = `Error fetching ${isTrafficCommand ? 'traffic location' : 'weather'}: ${description}`
+      })
+      .finally(() => {
+        clearTimeout(timeout)
+        if (lookupController === controller) lookupController = null
       })
     return
   }
