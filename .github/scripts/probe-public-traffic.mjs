@@ -3,8 +3,8 @@
 const host = 'https://www.msyed.space'
 const paths = [
   '/api/traffic/status',
-  '/api/terminal-lookup?city=Seattle%26mode=weather',
-  '/api/terminal-lookup?city=Seattle%26mode=traffic',
+  '/api/terminal-lookup?city=Seattle&mode=weather',
+  '/api/terminal-lookup?city=Seattle&mode=traffic',
   '/api/traffic/roads/11/328/715',
   '/api/traffic/roads/11/329/715',
   '/api/traffic/roads/12/656/1430',
