@@ -1,0 +1,22 @@
+name: Production TomTom route smoke test
+on:
+  pull_request:
+    paths:
+      - 'server/utils/traffic/**'
+      - 'tests/**'
+      - '.github/workflows/tomtom-route-smoke.yml'
+  push:
+    branches: [fix/tomtom-vector-runtime]
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm install --no-audit --no-fund
+      - run: npm test
+      - run: npm run build
+      - run: node tests/smoke-traffic-server.mjs
