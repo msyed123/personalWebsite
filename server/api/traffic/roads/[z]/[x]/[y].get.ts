@@ -32,7 +32,29 @@ export default defineEventHandler(async (event) => {
     const tile = await cachedRoadTile(z, x, y)
     setHeader(event, 'Cache-Control', 'public, max-age=180, stale-while-revalidate=60')
     return tile
-  } catch {
-    throw createError({ statusCode: 502, statusMessage: 'Road traffic provider unavailable' })
+  } catch (error: any) {
+    // Send only a safe failure category. Never expose the TomTom key, full
+    // provider URL, or raw upstream response to public visitors.
+    const message = String(error?.message || '')
+    const upstream = /TomTom traffic request failed: HTTP (\\d{3})/.exec(message)
+    const upstreamStatus = upstream ? Number(upstream[1]) : null
+    const category = upstreamStatus === 401 || upstreamStatus === 403
+      ? 'AUTHORIZATION'
+      : upstreamStatus === 429
+      ? 'RATE_LIMIT'
+      : upstreamStatus !== null
+      ? 'UPSTREAM_HTTP_' + upstreamStatus
+      : message.includes('unexpected tile format')
+      ? 'INVALID_TILE_FORMAT'
+      : message.includes('exceeds size limit')
+      ? 'OVERSIZE_TILE'
+      : error?.name === 'TimeoutError' || error?.name === 'AbortError'
+      ? 'TIMEOUT'
+      : 'TILE_DECODING_OR_NETWORK'
+    console.warn('[TRAFFIC] TomTom request unavailable', { category, z, x, y })
+    throw createError({
+      statusCode: 502,
+      statusMessage: 'Road traffic ' + category
+    })
   }
 })
