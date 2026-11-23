@@ -29,7 +29,7 @@ export function createTrafficMap({ gl, leafletMap, onStatus, onReady, onSources,
 
   const applyVisibility = () => {
     const visibility = visible ? 'visible' : 'none'
-    for (const id of ['traffic-road-lines', 'traffic-station-circles']) {
+    for (const id of ['traffic-road-casing', 'traffic-road-lines', 'traffic-station-circles']) {
       if (gl.getLayer(id)) gl.setLayoutProperty(id, 'visibility', visibility)
     }
   }
@@ -113,25 +113,39 @@ export function createTrafficMap({ gl, leafletMap, onStatus, onReady, onSources,
   async function start() {
     gl.addSource(ROAD_ID, { type: 'geojson', data: emptyTrafficCollection() })
     gl.addSource(SENSOR_ID, { type: 'geojson', data: emptyTrafficCollection() })
+    // Insert under place and road labels: real traffic is legible without masking map names.
+    const firstLabel = gl.getStyle().layers.find(
+      (layer) => layer.type === 'symbol' && layer.layout?.['text-field']
+    )?.id
+    const visibleTraffic = ['!=', ['get', 'condition'], 'unknown']
     gl.addLayer({
-      id: 'traffic-road-lines', type: 'line', source: ROAD_ID,
+      id: 'traffic-road-casing', type: 'line', source: ROAD_ID, filter: visibleTraffic,
+      layout: { 'line-cap': 'round', 'line-join': 'round' },
+      paint: {
+        'line-color': '#080a0e',
+        'line-width': ['interpolate', ['linear'], ['zoom'], 6, 4, 10, 7, 13, 10],
+        'line-opacity': 0.94
+      }
+    }, firstLabel)
+    gl.addLayer({
+      id: 'traffic-road-lines', type: 'line', source: ROAD_ID, filter: visibleTraffic,
       layout: { 'line-cap': 'round', 'line-join': 'round' },
       paint: {
         'line-color': colorExpression,
-        'line-width': ['interpolate', ['linear'], ['zoom'], 6, 1, 10, 2.6, 13, 4],
-        'line-opacity': ['case', ['==', ['get', 'condition'], 'unknown'], 0, 0.8]
+        'line-width': ['interpolate', ['linear'], ['zoom'], 6, 2.5, 10, 4.5, 13, 7],
+        'line-opacity': 0.94
       }
-    })
+    }, firstLabel)
     gl.addLayer({
       id: 'traffic-station-circles', type: 'circle', source: SENSOR_ID,
       paint: {
         'circle-color': colorExpression,
-        'circle-radius': ['interpolate', ['linear'], ['zoom'], 6, 2, 10, 3.5, 13, 5],
+        'circle-radius': ['interpolate', ['linear'], ['zoom'], 6, 2.5, 10, 4.5, 13, 6],
         'circle-stroke-color': '#090c0f',
-        'circle-stroke-width': 1.3,
-        'circle-opacity': ['case', ['==', ['get', 'condition'], 'unknown'], 0.4, 0.95]
+        'circle-stroke-width': 1.5,
+        'circle-opacity': ['case', ['==', ['get', 'condition'], 'unknown'], 0.3, 0.95]
       }
-    })
+    }, firstLabel)
     try {
       const response = await fetch('/api/traffic/status')
       if (!response.ok) throw new Error('Traffic capabilities unavailable')
