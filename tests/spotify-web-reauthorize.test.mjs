@@ -12,7 +12,8 @@ const original = { ...process.env }
 const restore = () => {
   for (const key of [
     'SPOTIFY_ADMIN_SECRET', 'SPOTIFY_CLIENT_SECRET', 'SPOTIFY_WEB_REDIRECT_URI',
-    'UPSTASH_REDIS_REST_URL', 'UPSTASH_REDIS_REST_TOKEN'
+    'UPSTASH_REDIS_REST_URL', 'UPSTASH_REDIS_REST_TOKEN',
+    'SPOTIFY_TOKEN_ENCRYPTION_KEY'
   ]) {
     if (original[key] === undefined) delete process.env[key]
     else process.env[key] = original[key]
@@ -24,6 +25,7 @@ const setup = () => {
   process.env.SPOTIFY_WEB_REDIRECT_URI = 'https://personal.example/api/spotify/callback'
   process.env.UPSTASH_REDIS_REST_URL = 'https://example.upstash.io'
   process.env.UPSTASH_REDIS_REST_TOKEN = 'server-only-redis-token'
+  process.env.SPOTIFY_TOKEN_ENCRYPTION_KEY = 'a'.repeat(64)
 }
 const mockStore = () => {
   let saved = null
@@ -107,8 +109,20 @@ test('wrong encryption secret cannot read stored credentials', async () => {
   await writeSpotifyAuthorization({
     refreshToken: 'token', accountId: 'owner', request: store.request
   })
-  process.env.SPOTIFY_ADMIN_SECRET = 'different-owner-key-' + 'y'.repeat(48)
+  process.env.SPOTIFY_TOKEN_ENCRYPTION_KEY = 'b'.repeat(64)
   await assert.rejects(readSpotifyAuthorization({ request: store.request }))
+  restore()
+})
+
+test('changing owner access key does not lose the encrypted Spotify token', async () => {
+  setup()
+  const store = mockStore()
+  await writeSpotifyAuthorization({
+    refreshToken: 'persisted-token', accountId: 'owner', request: store.request
+  })
+  process.env.SPOTIFY_ADMIN_SECRET = 'new-admin-key-' + 'z'.repeat(48)
+  const record = await readSpotifyAuthorization({ request: store.request })
+  assert.equal(record.refreshToken, 'persisted-token')
   restore()
 })
 
