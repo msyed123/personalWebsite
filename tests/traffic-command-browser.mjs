@@ -191,7 +191,7 @@ try{
    await page.waitForFunction(() =>
      document.querySelector('[aria-label="Radar timeline"]')?.getAttribute('aria-busy') === 'false',
      null, {timeout:20000})
-   const weatherCard=page.locator('[class*="max-w-2xl"]').last()
+   const weatherCard=card
    // The non-draggable radar map must never render a padded, overflowing GL
    // surface beside the terminal card. Check both the surface geometry and
    // compositor containment; overflow:hidden alone was not sufficient.

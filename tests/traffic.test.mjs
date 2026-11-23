@@ -92,4 +92,6 @@ test('wide Seattle traffic maps keep full coverage without exceeding the tile li
   assert.deepEqual(covered, visibleTileCoordinates(wide, 11))
   assert.deepEqual(budgetedRoadTileCoordinates(wide, 11), covered)
   assert.deepEqual(budgetedRoadTileCoordinates(wide, 5), [])
+  const world = { west: -179.9, east: 179.9, south: -80, north: 80 }
+  assert.deepEqual(budgetedRoadTileCoordinates(world, 20), [])
 })
