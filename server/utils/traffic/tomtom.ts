@@ -1,5 +1,5 @@
 import { VectorTile } from '@mapbox/vector-tile'
-import Protobuf from 'pbf'
+import { PbfReader } from 'pbf'
 import { emptyTrafficCollection, normalizeRoadFeature } from '~/shared/traffic.js'
 
 // One provider adapter. No TomTom fields escape into the map-rendering code.
@@ -20,7 +20,7 @@ export async function fetchTomTomRoadTile(z: number, x: number, y: number, key: 
   if (bytes.byteLength > 2 * 1024 * 1024) throw new Error('Traffic tile exceeds size limit')
   if (!bytes.byteLength) return emptyTrafficCollection()
 
-  const tile = new VectorTile(new Protobuf(bytes))
+  const tile = new VectorTile(new PbfReader(bytes))
   const retrievedAt = new Date().toISOString()
   const features: any[] = []
   for (const [name, layer] of Object.entries(tile.layers)) {
