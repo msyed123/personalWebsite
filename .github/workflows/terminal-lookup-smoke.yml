@@ -6,6 +6,7 @@ on:
       - 'server/api/terminal-lookup.get.ts'
       - 'server/api/traffic/**'
       - 'tests/smoke-terminal-lookup.mjs'
+      - 'tests/terminal-ui-browser.mjs'
       - 'tests/fixtures/mock-terminal-providers.mjs'
       - '.github/workflows/terminal-lookup-smoke.yml'
   push:
@@ -23,3 +24,6 @@ jobs:
       - run: npm test
       - run: npm run build
       - run: node tests/smoke-terminal-lookup.mjs
+      - run: npm install --no-save playwright
+      - run: npx playwright install --with-deps chromium
+      - run: node tests/terminal-ui-browser.mjs
