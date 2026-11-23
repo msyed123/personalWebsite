@@ -18,16 +18,16 @@ function makeRadarTile(frame = 0) {
   for (let y = 0; y < 256; y++) {
     for (let x = 0; x < 256; x++) {
       const i = (y * 256 + x) * 4
-      const shift = frame * 1.8
-      const cellWest = ((x - 124 - shift) / 21) ** 2 + ((y - 170 - 0.15 * (x - 124)) / 14) ** 2
-      const cellEast = ((x - 177 + shift) / 20) ** 2 + ((y - 190 + 0.1 * (x - 177)) / 12) ** 2
-      const cellSouth = ((x - 147) / 11) ** 2 + ((y - 205 - shift) / 10) ** 2
+      const shift = frame * 1.1
+      const cellWest = ((x - 128 - shift) / 10) ** 2 + ((y - 179) / 8) ** 2
+      const cellEast = ((x - 176 + shift) / 10) ** 2 + ((y - 186) / 7) ** 2
+      const cellSouth = ((x - 151) / 8) ** 2 + ((y - 205 - shift) / 5) ** 2
       const noise = ((x * 31 + y * 17 + (x * y) % 47 + frame * 29) % 100) / 100
       const raining = Math.min(cellWest, cellEast, cellSouth) <
-        (0.95 + 0.15 * Math.sin(x / 4 + y / 7)) && noise > 0.15
+        (0.85 + 0.13 * Math.sin(x / 4 + y / 7)) && noise > 0.26
       png.data[i] = raining ? 0 : 0
-      png.data[i + 1] = raining ? 170 + (x % 45) : 0
-      png.data[i + 2] = raining ? 195 + (y % 45) : 0
+      png.data[i + 1] = raining ? 85 + (x % 45) : 0
+      png.data[i + 2] = raining ? 175 + (y % 35) : 0
       png.data[i + 3] = raining ? 230 : 0
     }
   }
