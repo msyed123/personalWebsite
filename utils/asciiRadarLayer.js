@@ -262,6 +262,9 @@ export function createAsciiRadarLayer({
         source: sourceIds[i],
         paint: {
           'raster-opacity': i === 0 ? opacity : 0,
+          // Manual requestAnimationFrame interpolation owns the 720ms blend;
+          // disable MapLibre's separate default 300ms paint transitions.
+          'raster-opacity-transition': { duration: 0, delay: 0 },
           'raster-fade-duration': 0,
           'raster-resampling': 'nearest'
         }
