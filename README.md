@@ -21,14 +21,41 @@ $ npm run generate
 
 For detailed explanation on how things work, checkout [Nuxt.js docs](https://nuxtjs.org).
 
-## Weather radar and optional live traffic
+## Weather radar and provider-independent traffic
 
-The terminal weather card uses a keyless [OpenFreeMap](https://openfreemap.org/) vector basemap with existing RainViewer radar. Road-traffic flow is provided by [TomTom's Orbis Traffic Raster Tiles](https://docs.tomtom.com/traffic-api/documentation/tomtom-orbis-maps/v2/traffic-flow/raster-flow-tiles), which have a limited free monthly allowance and require a developer API key.
+The weather terminal uses **OpenFreeMap Dark** (MapLibre through Leaflet) plus the existing ASCII-like **RainViewer** radar. The basemap and radar require no traffic credentials.
 
-To turn on real traffic, register for a TomTom developer key and set the **server-side** deployment environment variable `NUXT_TOMTOM_TRAFFIC_KEY`. Redeploy or restart the server after adding it. Do **not** put the key in `.env` variables starting with `NUXT_PUBLIC_` or commit it to Git. Without a key, the weather card displays `TRF: NO KEY`, while the map and radar remain functional.
+The traffic renderer consumes one normalized GeoJSON feature contract from `shared/traffic.js` and never parses provider-specific formats:
 
-Traffic tiles are proxied through `/api/traffic/flow/{z}/{x}/{y}` to avoid revealing the key. Tiles are cached by browsers for three minutes and the visible layer refreshes every five minutes. The public proxy still consumes TomTom quota, so monitor your free-tier usage and configure spending limits where available. The legend represents relative road speed and closures, not exact vehicle speeds. Traffic may be absent for roads without coverage.
+| Data type | Server adapter | API | Rendering |
+| --- | --- | --- | --- |
+| Worldwide road flow | `server/utils/traffic/tomtom.ts` | TomTom Orbis v2 vector tiles | Road segments colored by relative free-flow speed |
+| Washington highway observations | `server/utils/traffic/wsdot.ts` | WSDOT TrafficFlow | Small color-coded points at real sensor locations |
 
-The map includes visible OpenFreeMap/OpenMapTiles/OpenStreetMap attribution and TomTom credit when traffic is enabled.
+**TomTom and WSDOT are optional and independent.** Road closures and unknown measurements are distinguished explicitly, missing observations are never treated as clear roads, and stale WSDOT readings are grayed out. The frontend uses the same road/sensor GeoJSON schema no matter which server adapter is used. New providers can implement the same format without any map-component edits.
 
-**Manual validation after deploying**: open `weather` and `weather Seattle` and confirm the vector basemap renders under the pixelated radar. Verify zoom and timeline controls. With no traffic key, verify `TRF: NO KEY` and no traffic tile requests. With a valid key, verify colored traffic roads and `TRF: LIVE`; with an invalid key, the status should show `TRF: ERROR` without breaking the basemap or radar. Confirm the small-screen footer and source attributions remain visible.
+### Production configuration
+
+Configure server environment variables in your deployment platform; do not commit keys or expose them as `NUXT_PUBLIC_*`.
+
+- `NUXT_TOMTOM_TRAFFIC_KEY`: TomTom developer key for Orbis vector traffic tiles. Optional. Traffic vector tiles have a limited free monthly quota; enable account alerts/usage controls where available.
+- `NUXT_WSDOT_ACCESS_CODE`: WSDOT Traveler Information API access code. Optional. Covers Washington highways at discrete sensors, not every road.
+
+After changing variables, restart/redeploy the server. Either key can be configured alone; with neither, the map/radar still work and the widget says **TRF: NO KEY**.
+
+The server APIs are `/api/traffic/status`, `/api/traffic/roads/:z/:x/:y`, and `/api/traffic/stations?bbox=west,south,east,north`. Provider credentials stay on the server. Road tiles cache for 180 seconds; sensor readings cache for 90 seconds. The browser refreshes every three minutes while the widget is open, and does not fetch traffic when hidden. The visible-road-tile limit prevents accidental global tile sweeps. WSDOT's actual measurement times are preserved; TomTom's tile retrieval time is labeled as a fetch time rather than a measurement time.
+
+All source attributions are visible in the widget footer. The color scheme is part of the site's terminal theme, not the provider's default traffic raster colors.
+
+### Validation
+
+- Run `npm test` for normalization, provider-agnostic categories, timestamps, and tile bounding logic.
+- Run `npm run build` to check the Nuxt/Vite integration.
+- In a test deployment, run `weather` and `weather New York` and confirm the map is underneath the existing ASCII radar and that animation/play/zoom controls still work.
+- With no keys: `TRF: NO KEY`, no requests to any traffic provider.
+- With a TomTom key: genuine colored road segments, closure/unknown behavior, `TRF: LIVE` when returned.
+- With a WSDOT code: observation dots on covered Washington highways (not synthesized road geometry); outside Washington, `NO DATA` is legitimate.
+- With a bad key or service outage: `TRF: ERROR` or `DEGRADED`, never stale lines labeled live.
+- Confirm that neither private key appears in a browser network request or client bundle and that traffic usage stays within the free quota.
+
+Provider API behavior on a live deployment is not guaranteed by unit tests; credentials and an integration smoke test are required before treating the overlay as production-verified.
