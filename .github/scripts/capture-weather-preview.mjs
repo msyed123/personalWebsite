@@ -64,6 +64,15 @@ const mockStations = {
   }))
 }
 
+async function readVisibleRadarOpacity() {
+  return page.evaluate(() => {
+    const pane = Array.from(document.querySelectorAll('.leaflet-pane')).find(el => el.style.zIndex === '450')
+    if (!pane) return null
+    const layers = Array.from(pane.querySelectorAll('.leaflet-layer'))
+    return layers.length ? Math.max(...layers.map(layer => Number.parseFloat(getComputedStyle(layer).opacity) || 0)) : null
+  })
+}
+
 const browser = await chromium.launch({headless:true, args:['--no-sandbox','--disable-dev-shm-usage','--use-gl=angle','--use-angle=swiftshader']})
 const page = await browser.newPage({viewport:{width:900,height:780},deviceScaleFactor:2,locale:'en-US',timezoneId:'America/Los_Angeles'})
 const messages = []
@@ -111,6 +120,10 @@ try {
 } catch { messages.push('Timed out waiting for TRAFFIC [ON] and LIVE; status: '+(await page.locator('body').innerText()).slice(0,500)) }
 await page.waitForTimeout(3500)
 const card=page.locator('[class*="max-w-2xl"]').last()
+const onOpacity = await readVisibleRadarOpacity()
+if (onOpacity === null || Math.abs(onOpacity - 0.55) > 0.03) {
+  throw new Error('Expected radar alpha 0.55 with traffic ON; got '+onOpacity)
+}
 await card.screenshot({path:path.join(outputDir,'weather-card-polished-on.png')})
 const pixels = PNG.sync.read(fs.readFileSync(path.join(outputDir,'weather-card-polished-on.png')))
 let radarPixelCount = 0
@@ -141,6 +154,10 @@ if (!await trafficButton.isVisible()) throw new Error('Traffic ON toggle missing
 await trafficButton.click()
 await page.getByRole('button',{name:'Turn traffic overlay on'}).waitFor({timeout:5000})
 if (!await page.locator('button:has-text("TRAFFIC [OFF]")').isVisible()) throw new Error('Traffic OFF label missing')
+const offOpacity = await readVisibleRadarOpacity()
+if (offOpacity === null || Math.abs(offOpacity - 0.95) > 0.03) {
+  throw new Error('Expected radar alpha 0.95 with traffic OFF; got '+offOpacity)
+}
 await card.screenshot({path:path.join(outputDir,'weather-card-polished-off.png')})
 await page.getByRole('button',{name:'Turn traffic overlay on'}).click()
 await page.getByRole('button',{name:'Turn traffic overlay off'}).waitFor({timeout:5000})
