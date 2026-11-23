@@ -26,10 +26,11 @@
     </main>
     
     <!-- Whole-footer opacity makes the page bleed through an otherwise opaque card.
-         Keep the terminal footer translucent only when no weather/traffic card is open. -->
+         In map modes, cancel the app shell's p-4/sm:p-8 horizontal padding
+         and keep only the map gutters. Normal footer/page widths are unchanged. -->
     <footer
-      class="sticky bottom-0 z-50 backdrop-blur-md border-t border-terminal-amber-dim py-4 w-full flex flex-col gap-2 text-sm md:text-base"
-      :class="weatherData ? 'bg-terminal-black opacity-100 px-2 sm:px-4 lg:px-6' : 'bg-terminal-black/95 opacity-95 px-4'"
+      class="sticky bottom-0 z-50 backdrop-blur-md border-t border-terminal-amber-dim py-4 flex flex-col gap-2 text-sm md:text-base"
+      :class="weatherData ? 'w-auto -mx-4 sm:-mx-8 bg-terminal-black opacity-100 px-2 sm:px-4 lg:px-6' : 'w-full bg-terminal-black/95 opacity-95 px-4'"
     >
       <!-- Spotify card output -->
       <div v-if="spotifyData && !spotifyData.error" class="w-full pb-2 mb-2 border-b border-terminal-amber-dim/20 flex justify-center">
