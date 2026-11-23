@@ -2,8 +2,20 @@ import { spawn } from 'node:child_process'
 import { resolve } from 'node:path'
 import { mkdirSync,writeFileSync } from 'node:fs'
 import { chromium } from 'playwright'
+import { PNG } from 'pngjs'
 
 mkdirSync('preview-output',{recursive:true})
+const storm=new PNG({width:256,height:256})
+for(let y=0;y<256;y++)for(let x=0;x<256;x++){
+ const i=(y*256+x)*4
+ const c=((x-155)/48)**2+((y-165)/38)**2
+ const rain=c<1.3 && (x*17+y*13)%29!==0
+ storm.data[i]=rain?12:0
+ storm.data[i+1]=rain?80:0
+ storm.data[i+2]=rain?205:0
+ storm.data[i+3]=rain?225:0
+}
+const stormTile=PNG.sync.write(storm)
 const port=4357
 const child=spawn(process.execPath,['.output/server/index.mjs'],{
  env:{...process.env,NITRO_PORT:String(port),NITRO_HOST:'127.0.0.1'},stdio:['ignore','pipe','pipe']
@@ -38,7 +50,11 @@ try{
      status:200,contentType:'application/json',body:JSON.stringify({current:{temperature_2m:47.8,weather_code:3}})
    }))
    await page.route('https://api.rainviewer.com/public/weather-maps.json',route=>route.fulfill({
-     status:200,contentType:'application/json',body:JSON.stringify({radar:{past:[]}})
+     status:200,contentType:'application/json',
+     body:JSON.stringify({radar:{past:[{path:'/v2/radar/test-1',time:1763870700}]}})
+   }))
+   await page.route('https://tilecache.rainviewer.com/**',route=>route.fulfill({
+     status:200,contentType:'image/png',body:stormTile
    }))
    await page.route('**/api/traffic/status',route=>route.fulfill({
      status:200,contentType:'application/json',body:JSON.stringify({roads:true,stations:true,refreshSeconds:180})
@@ -81,7 +97,12 @@ try{
    await input.press('Enter')
    await page.getByText('LIVE RADAR SIGNAL').waitFor({timeout:30000})
    if(await page.getByText('LIVE TRAFFIC SIGNAL').count())throw Error('Traffic-only header survived weather switch')
-   summaries.push({name,radarRequestsBeforeWeather:radarRequests,...info,pageErrors:errors})
+   await page.waitForTimeout(3500)
+   if(radarRequests < 2)throw Error('ASCII radar was never requested inside MapLibre: '+radarRequests)
+   if(errors.length)throw Error('Browser errors: '+JSON.stringify(errors))
+   const weatherCard=page.locator('[class*="max-w-2xl"]').last()
+   await weatherCard.screenshot({path:`preview-output/weather-radar-behind-roads-${name}.png`})
+   summaries.push({name,radarRequestsBeforeWeather:0,radarRequestsAfterWeather:radarRequests,...info,pageErrors:errors})
    await page.close()
  }
  writeFileSync('preview-output/traffic-browser-report.json',JSON.stringify(summaries,null,2))
