@@ -1,0 +1,16 @@
+name: Local Nuxt traffic endpoint diagnosis
+on:
+  push:
+    branches: [diagnostics/live-traffic-20261123]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm install --no-audit --no-fund
+      - run: npm run build
+      - run: node .github/scripts/probe-local-traffic.mjs
