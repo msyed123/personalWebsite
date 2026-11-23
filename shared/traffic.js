@@ -104,3 +104,14 @@ export function visibleTileCoordinates(bounds, zoom, limit = 12) {
   }
   return tiles
 }
+
+
+// Wider maps can exceed the request budget at the displayed zoom. Cover the
+// same view with the highest provider zoom that fits instead of clipping it.
+export function budgetedRoadTileCoordinates(bounds, mapZoom, limit = 12) {
+  for (let zoom = Math.min(13, Math.floor(mapZoom)); zoom >= 6; zoom--) {
+    const tiles = visibleTileCoordinates(bounds, zoom, limit)
+    if (tiles.length) return tiles
+  }
+  return []
+}

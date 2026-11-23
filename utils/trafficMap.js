@@ -1,4 +1,4 @@
-import { emptyTrafficCollection, visibleTileCoordinates } from '~/shared/traffic.js'
+import { emptyTrafficCollection, budgetedRoadTileCoordinates } from '~/shared/traffic.js'
 
 const COLORS = {
   flowing: '#26ad6a',
@@ -54,7 +54,7 @@ export function createTrafficMap({ gl, leafletMap, onStatus, onReady, onSources,
       west: bounds.getWest(), south: bounds.getSouth(),
       east: bounds.getEast(), north: bounds.getNorth()
     }
-    const tiles = roadEnabled ? visibleTileCoordinates(box, Math.min(13, zoom), 12) : []
+    const tiles = roadEnabled ? budgetedRoadTileCoordinates(box, zoom) : []
     if (roadEnabled && tiles.length === 0) {
       onStatus('ZOOM IN')
       clearData()
@@ -236,3 +236,4 @@ async function parseCollection(response) {
   }
   return data
 }
+

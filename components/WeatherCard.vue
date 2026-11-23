@@ -1,5 +1,5 @@
 <template>
-  <div class="font-mono text-sm border border-terminal-amber/30 p-4 max-w-2xl w-full bg-terminal-black shadow-lg relative flex flex-col gap-4 group">
+  <div data-terminal-map-card class="font-mono text-sm border border-terminal-amber/30 p-3 sm:p-4 w-full min-w-0 bg-terminal-black shadow-lg relative flex flex-col gap-4 group">
     <button @click="$emit('close')" class="absolute top-2 right-3 z-[999] text-terminal-amber bg-terminal-black/80 px-2 py-0 border border-terminal-amber-dim hover:text-red-500 hover:border-red-500 transition-colors cursor-pointer">[x]</button>
     
     <!-- Weather Data Top Bar -->
@@ -519,3 +519,4 @@ onUnmounted(() => {
   display: none !important;
 }
 </style>
+
