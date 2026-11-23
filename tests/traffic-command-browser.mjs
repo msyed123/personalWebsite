@@ -249,6 +249,11 @@ try{
    if(JSON.stringify(beforeLoopLayout)!==JSON.stringify(afterLoopLayout)) {
      throw Error('Scrubber box shifts between frames: '+JSON.stringify({beforeLoopLayout,afterLoopLayout}))
    }
+   if(errors.length)throw Error('Browser errors: '+JSON.stringify(errors))
+   summaries.push({name,radarRequestsBeforeWeather:0,radarRequestsAfterWeather:radarRequests,
+     sliderMax:await slider.getAttribute('max'),sliderValue:await slider.inputValue(),
+     firstPassCDNRequests:loadedOnce,secondPassCDNRequests:afterSecondLoop,
+     timelineLayout:afterLoopLayout,...info,pageErrors:errors})
    // A revoked Spotify refresh token used to silently clear the terminal.
    // Regress the visible owner-reauthorization message in both viewport sizes.
    await page.route('**/api/spotify',route=>route.fulfill({
@@ -263,10 +268,6 @@ try{
      throw Error('Nowplaying rendered stale Spotify card after auth expiry')
    }
    if(errors.length)throw Error('Browser errors: '+JSON.stringify(errors))
-   summaries.push({name,radarRequestsBeforeWeather:0,radarRequestsAfterWeather:radarRequests,
-     sliderMax:await slider.getAttribute('max'),sliderValue:await slider.inputValue(),
-     firstPassCDNRequests:loadedOnce,secondPassCDNRequests:afterSecondLoop,
-     timelineLayout:afterLoopLayout,...info,pageErrors:errors})
    await page.close()
  }
  writeFileSync('preview-output/traffic-browser-report.json',JSON.stringify(summaries,null,2))
