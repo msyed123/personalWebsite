@@ -1,17 +1,18 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  renewalStoreReady, readSpotifyAuthorization, writeSpotifyAuthorization
+  beginSpotifyTransaction, consumeSpotifyTransaction, readSpotifyAuthorizationSnapshot,
+  renewalStoreReady, readSpotifyAuthorization, rotateSpotifyAuthorization, writeSpotifyAuthorization
 } from '../server/utils/spotifyAuthorizationStore.js'
 import {
-  spotifyRedirectUri, validSpotifyAdminSecret, validOAuthState,
+  isSpotifyOwner, spotifyRedirectUri, spotifyWebRenewalEnabled, validSpotifyAdminSecret,
   spotifyAuthorizeUrl, spotifyAuthorizeAccount
 } from '../server/utils/spotifyWebAuth.js'
 
 const original = { ...process.env }
 const restore = () => {
   for (const key of [
-    'SPOTIFY_ADMIN_SECRET', 'SPOTIFY_CLIENT_SECRET', 'SPOTIFY_WEB_REDIRECT_URI',
+    'SPOTIFY_ADMIN_SECRET', 'SPOTIFY_OWNER_ACCOUNT_ID', 'SPOTIFY_WEB_RENEWAL_ENABLED', 'SPOTIFY_CLIENT_SECRET', 'SPOTIFY_WEB_REDIRECT_URI',
     'UPSTASH_REDIS_REST_URL', 'UPSTASH_REDIS_REST_TOKEN',
     'SPOTIFY_TOKEN_ENCRYPTION_KEY'
   ]) {
@@ -67,9 +68,6 @@ test('owner secret and OAuth state are checked without exposing input', () => {
   setup()
   assert.equal(validSpotifyAdminSecret(process.env.SPOTIFY_ADMIN_SECRET), true)
   assert.equal(validSpotifyAdminSecret('a'.repeat(64)), false)
-  assert.equal(validOAuthState('a'.repeat(64), 'a'.repeat(64)), true)
-  assert.equal(validOAuthState('a'.repeat(64), 'b'.repeat(64)), false)
-  assert.equal(validOAuthState('a'.repeat(32), 'a'.repeat(32)), false)
   const auth = new URL(spotifyAuthorizeUrl({
     state: 'a'.repeat(64),
     redirectUri: spotifyRedirectUri(),
@@ -162,4 +160,92 @@ test('Spotify identity failure prevents authorization', async () => {
       ? new Response(JSON.stringify({ access_token: 'a', refresh_token: 'b' }), { status: 200 })
       : new Response(JSON.stringify({ id: 'only-legacy-id' }), { status: 200 })
   }), /account_id/)
+})
+
+
+test('web renewal is opt-in and requires an explicit owner pin', () => {
+  setup()
+  try {
+    delete process.env.SPOTIFY_WEB_RENEWAL_ENABLED
+    process.env.SPOTIFY_OWNER_ACCOUNT_ID = 'expected-account'
+    assert.equal(spotifyWebRenewalEnabled(), false)
+    process.env.SPOTIFY_WEB_RENEWAL_ENABLED = 'true'
+    assert.equal(spotifyWebRenewalEnabled(), true)
+    assert.equal(isSpotifyOwner('expected-account'), true)
+    assert.equal(isSpotifyOwner('other-account'), false)
+    assert.equal(isSpotifyOwner('expected-account', 'other-account'), false)
+    delete process.env.SPOTIFY_OWNER_ACCOUNT_ID
+    assert.equal(spotifyWebRenewalEnabled(), false)
+  } finally { restore() }
+})
+
+function transactionalStore() {
+  let now = 0
+  const redis = new Map()
+  function get(key) {
+    const entry = redis.get(key)
+    return entry && entry.until > now ? entry.value : null
+  }
+  const request = async (_url, init) => {
+    const [op, key, value, ...rest] = JSON.parse(init.body)
+    let result
+    if (op === 'SET') {
+      if (rest.length) assert.deepEqual(rest, ['NX', 'EX', 600])
+      result = rest.length && get(key) !== null ? null : 'OK'
+      if (result) redis.set(key, { value, until: rest.length ? now + rest[2] : Infinity })
+    } else if (op === 'GETDEL') {
+      result = get(key)
+      redis.delete(key)
+    } else if (op === 'GET') {
+      result = get(key)
+    } else if (op === 'EVAL') {
+      assert.equal(value, 1)
+      assert.match(key, /redis.call\('GET', KEYS\[1\]\)/)
+      const [recordKey, expected, replacement] = rest
+      result = get(recordKey) === expected ? 1 : 0
+      if (result) redis.set(recordKey, { value: replacement, until: Infinity })
+    } else {
+      throw new Error('Unexpected Redis operation')
+    }
+    return new Response(JSON.stringify({ result }))
+  }
+  return { request, advance(seconds) { now += seconds } }
+}
+
+test('web renewal transaction is issued, browser bound, one time and expiring', async () => {
+  setup()
+  try {
+    const store = transactionalStore()
+    const first = await beginSpotifyTransaction(store)
+    const second = await beginSpotifyTransaction(store)
+    assert.notEqual(first.state, first.browser)
+    assert.equal(await consumeSpotifyTransaction(first.state, second.browser, store), false)
+    const racing = await Promise.all([
+      consumeSpotifyTransaction(first.state, first.browser, store),
+      consumeSpotifyTransaction(first.state, first.browser, store)
+    ])
+    assert.deepEqual(racing.sort(), [false, true])
+    store.advance(600)
+    assert.equal(await consumeSpotifyTransaction(second.state, second.browser, store), false)
+  } finally { restore() }
+})
+
+test('refresh rotation cannot overwrite a concurrent website renewal', async () => {
+  setup()
+  try {
+    const store = transactionalStore()
+    await writeSpotifyAuthorization({ refreshToken: 'old', accountId: 'owner', authorizedAt: 1, request: store.request })
+    const stale = await readSpotifyAuthorizationSnapshot(store)
+    await writeSpotifyAuthorization({ refreshToken: 'new', accountId: 'owner', authorizedAt: 2, request: store.request })
+    assert.equal(await rotateSpotifyAuthorization(stale, 'stale-rotation', store), false)
+    const current = await readSpotifyAuthorizationSnapshot(store)
+    const written = await Promise.all([
+      rotateSpotifyAuthorization(current, 'rotate-a', store),
+      rotateSpotifyAuthorization(current, 'rotate-b', store)
+    ])
+    assert.deepEqual(written.sort(), [false, true])
+    const result = await readSpotifyAuthorization(store)
+    assert.match(result.refreshToken, /^rotate-/)
+    assert.equal(result.authorizedAt, 2)
+  } finally { restore() }
 })

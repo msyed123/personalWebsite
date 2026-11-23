@@ -1,11 +1,10 @@
-import { randomBytes } from 'node:crypto'
 import {
   defineEventHandler, getHeader, readFormData, sendRedirect, setCookie, setHeader,
   createError
 } from 'h3'
-import { renewalStoreReady } from '../../utils/spotifyAuthorizationStore.js'
+import { beginSpotifyTransaction, renewalStoreReady, spotifyTransactionLifetime } from '../../utils/spotifyAuthorizationStore.js'
 import {
-  spotifyAuthorizeUrl, spotifyRedirectUri, validSpotifyAdminSecret
+  spotifyAuthorizeUrl, spotifyOAuthBrowserCookie, spotifyRedirectUri, spotifyWebRenewalEnabled, validSpotifyAdminSecret
 } from '../../utils/spotifyWebAuth.js'
 
 // POST-only owner action: a secret goes in the HTTPS form body, never in a URL.
@@ -13,13 +12,13 @@ import {
 export default defineEventHandler(async event => {
   setHeader(event, 'Cache-Control', 'no-store')
   setHeader(event, 'Referrer-Policy', 'no-referrer')
-  const redirectUri = spotifyRedirectUri()
-  const redirect = new URL(redirectUri)
-  if (!process.env.SPOTIFY_CLIENT_ID || !process.env.SPOTIFY_CLIENT_SECRET ||
+  if (!spotifyWebRenewalEnabled() || !process.env.SPOTIFY_CLIENT_ID || !process.env.SPOTIFY_CLIENT_SECRET ||
       !renewalStoreReady()) {
     throw createError({ statusCode: 503, statusMessage: 'Spotify owner renewal is not configured' })
   }
 
+  const redirectUri = spotifyRedirectUri()
+  const redirect = new URL(redirectUri)
   // Reject cross-origin POSTs even before examining the owner secret.
   if (getHeader(event, 'origin') !== redirect.origin ||
       getHeader(event, 'host') !== redirect.host) {
@@ -39,16 +38,19 @@ export default defineEventHandler(async event => {
     // Credential is NEVER echoed, included in a URL, logged, or retained.
     throw createError({ statusCode: 403, statusMessage: 'Owner authentication failed' })
   }
-  const state = randomBytes(32).toString('hex')
-  setCookie(event, 'spotify_oauth_state', state, {
+  const { state, browser } = await beginSpotifyTransaction().catch(() => {
+    throw createError({ statusCode: 503, statusMessage: 'Spotify renewal storage unavailable' })
+  })
+  setCookie(event, spotifyOAuthBrowserCookie, browser, {
     httpOnly: true,
     secure: true,
     sameSite: 'lax',
-    maxAge: 600,
-    path: '/api/spotify/callback'
+    maxAge: spotifyTransactionLifetime,
+    path: '/'
   })
   const url = spotifyAuthorizeUrl({
     state, redirectUri, clientId: process.env.SPOTIFY_CLIENT_ID
   })
   return sendRedirect(event, url, 303)
 })
+

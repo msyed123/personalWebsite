@@ -22,10 +22,17 @@ export function validSpotifyAdminSecret(candidate) {
   return timingSafeEqual(left, right)
 }
 
-export function validOAuthState(candidate, cookie) {
-  if (typeof candidate !== 'string' || typeof cookie !== 'string' ||
-      !/^[a-f0-9]{64}$/.test(candidate) || !/^[a-f0-9]{64}$/.test(cookie)) return false
-  return timingSafeEqual(Buffer.from(candidate), Buffer.from(cookie))
+export const spotifyOAuthBrowserCookie = '__Host-spotify_oauth_browser'
+
+export function spotifyWebRenewalEnabled() {
+  return process.env.SPOTIFY_WEB_RENEWAL_ENABLED === 'true' &&
+    Boolean(process.env.SPOTIFY_OWNER_ACCOUNT_ID?.trim()) &&
+    (process.env.SPOTIFY_ADMIN_SECRET?.length ?? 0) >= 32
+}
+
+export function isSpotifyOwner(accountId, priorAccountId) {
+  const owner = process.env.SPOTIFY_OWNER_ACCOUNT_ID
+  return Boolean(owner && accountId === owner && (!priorAccountId || priorAccountId === owner))
 }
 
 export function spotifyAuthorizeUrl({ state, redirectUri, clientId }) {
@@ -73,3 +80,4 @@ export async function spotifyAuthorizeAccount({
   }
   return { refreshToken: data.refresh_token, accountId: profile.account_id }
 }
+

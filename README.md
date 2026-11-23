@@ -89,14 +89,22 @@ for persistent token storage, encrypted on the server with AES-256-GCM.
      refresh token before saving to Redis; do not rotate it casually.
    - `SPOTIFY_WEB_REDIRECT_URI` — the exact HTTPS URL on the canonical public
      website: `https://YOUR-SITE-DOMAIN/api/spotify/callback`.
-   - Optional: `SPOTIFY_OWNER_ACCOUNT_ID` — the immutable `account_id` from
-     Spotify `GET /v1/me`. If configured, even the first renewal must match it.
-     Otherwise the **first** successful admin-key-assisted Spotify authorization
-     pins that account ID in the encrypted store; later connections must match.
+   - Required: `SPOTIFY_OWNER_ACCOUNT_ID` — the immutable `account_id` returned
+     by an owner-authenticated Spotify `GET /v1/me` for the intended account.
+     Verify it privately before setting it; do not use a display name.
+   - Leave `SPOTIFY_WEB_RENEWAL_ENABLED` unset (or `false`) until completing
+     the setup and checks below.
 3. In [Spotify Developer Dashboard](https://developer.spotify.com/dashboard),
    add the **exact same** `SPOTIFY_WEB_REDIRECT_URI` as an allowed redirect URI
    for the existing Spotify application. It must use HTTPS, not localhost.
-   Redeploy/restart Heroku after setting config vars.
+4. Before enabling reconnection, enable [Heroku router query-string redaction](https://devcenter.heroku.com/articles/http-routing#query-string-redaction)
+   (`http-router-no-log-query`), and verify reverse proxies, APM, and log drains
+   also redact the callback query. It includes a temporary OAuth code and state;
+   application-level `no-store` and `no-referrer` do not redact infrastructure logs.
+5. Verify the intended deployment has this hardening and that Upstash supports
+   `GETDEL` and `EVAL` for the dedicated store. Only then set
+   `SPOTIFY_WEB_RENEWAL_ENABLED=true` and validate with the owner's consent.
+   Removing the flag disables web reconnect without disabling normal playback.
 
 These one-time values are set on the server only and must **never** be prefixed
 `NUXT_PUBLIC_`, committed to Git, pasted into issue comments, or placed in an
@@ -110,17 +118,17 @@ untrusted website.
    `/spotify/connect` directly.
 3. Enter your owner access key and select **Sign in with Spotify**. Spotify
    handles the login on its own site. Select the same Spotify account as before.
-4. The OAuth callback checks its short-lived, HttpOnly/Secure/SameSite=Lax
-   anti-CSRF state, verifies the immutable Spotify `account_id`, and saves the
+4. The OAuth callback consumes a short-lived, single-use Redis transaction
+   bound to a separate HttpOnly/Secure/SameSite=Lax browser cookie, verifies the immutable Spotify `account_id`, and saves the
    refresh token encrypted in Redis. The token is never shown in the browser.
    If the account is different from the pinned owner, **nothing is replaced**.
-5. Return to the terminal and run `nowplaying`. Each subsequent request reads
-   the durable token; no need to update `SPOTIFY_REFRESH_TOKEN` in Heroku again.
+5. Return to the terminal and run `nowplaying`. Playback uses the durable token; no need to update `SPOTIFY_REFRESH_TOKEN` in Heroku again.
 
 The initial `SPOTIFY_REFRESH_TOKEN` config variable remains a migration
 fallback until a successful website renewal. It may be removed after confirming
 the new stored authorization works. The site also stores any rotated refresh
-tokens without resetting the six-month authorization age.
+tokens using an atomic compare-and-set without resetting the six-month authorization age.
+Public playback requests share in-flight work and a five-second cache per Heroku dyno.
 
 ### Security and failure behavior
 
@@ -129,7 +137,8 @@ tokens without resetting the six-month authorization age.
   owner key in constant time. A public visitor cannot authorize an account
   without the private owner key.
 - The owner key is not embedded in a link or stored in a browser cookie.
-  Only a random short-lived state value is stored as an HttpOnly cookie.
+  The browser receives only a random, short-lived host-only binding cookie.
+  Redis atomically consumes the matching transaction before exchanging the code.
 - Tokens are encrypted before they reach Redis; only the server has the
   Redis Standard token and the encryption inputs.
 - If persistent storage fails or the Spotify authorization expires, the public
@@ -148,3 +157,4 @@ Official docs:
 [Spotify redirect rules](https://developer.spotify.com/documentation/web-api/concepts/redirect_uri),
 [Upstash Redis REST API](https://upstash.com/docs/redis/features/restapi),
 [Heroku dyno filesystem](https://devcenter.heroku.com/articles/dyno-isolation).
+

@@ -103,3 +103,49 @@ export async function writeSpotifyAuthorization({
   if (result !== 'OK') throw new Error('Spotify token store unavailable')
   return true
 }
+
+
+// Include both random values in the lookup key. An unrelated browser cannot
+// consume the state by knowing only the value returned by Spotify.
+function transactionKey(state, browser) {
+  if (![state, browser].every(value => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value))) return null
+  return KEY + ':transaction:' + state + ':' + browser
+}
+
+export const spotifyTransactionLifetime = 600
+
+export async function beginSpotifyTransaction({ request = fetch } = {}) {
+  const state = randomBytes(32).toString('hex')
+  const browser = randomBytes(32).toString('hex')
+  const result = await command([
+    'SET', transactionKey(state, browser), 'issued', 'NX', 'EX', spotifyTransactionLifetime
+  ], config(), request)
+  if (result !== 'OK') throw new Error('Could not issue Spotify authorization transaction')
+  return { state, browser }
+}
+
+export async function consumeSpotifyTransaction(state, browser, { request = fetch } = {}) {
+  const key = transactionKey(state, browser)
+  if (!key) return false
+  return await command(['GETDEL', key], config(), request) === 'issued'
+}
+
+// Compare the exact encrypted record read before starting the provider request.
+const ROTATE_IF_CURRENT = "if redis.call('GET', KEYS[1]) ~= ARGV[1] then return 0 end redis.call('SET', KEYS[1], ARGV[2]); return 1"
+
+export async function rotateSpotifyAuthorization(snapshot, refreshToken, { request = fetch } = {}) {
+  if (!snapshot || typeof snapshot.revision !== 'string' ||
+      typeof refreshToken !== 'string' || !refreshToken) return false
+  const { accountId, authorizedAt } = snapshot
+  const settings = config()
+  const value = encrypt({ refreshToken, accountId, authorizedAt }, settings)
+  return await command(['EVAL', ROTATE_IF_CURRENT, 1, KEY, snapshot.revision, value], settings, request) === 1
+}
+
+export async function readSpotifyAuthorizationSnapshot({ request = fetch } = {}) {
+  const settings = config()
+  const revision = await command(['GET', KEY], settings, request)
+  if (revision === null) return null
+  if (typeof revision !== 'string') throw new Error('Invalid Spotify token store result')
+  return { ...decrypt(revision, settings), revision }
+}

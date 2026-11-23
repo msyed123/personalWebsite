@@ -1,16 +1,21 @@
 import { defineEventHandler } from 'h3'
 import { getSpotifyNowPlaying } from '../utils/spotifyNowPlaying.js'
 import {
-  renewalStoreReady, readSpotifyAuthorization, writeSpotifyAuthorization
+  renewalStoreReady, readSpotifyAuthorizationSnapshot, rotateSpotifyAuthorization
 } from '../utils/spotifyAuthorizationStore.js'
 
 // Public endpoint: only playback metadata may leave the server.
 // The owner refresh token is loaded from encrypted durable storage when
 // configured, with the original Heroku env var as a migration fallback.
-export default defineEventHandler(async () => {
+// Coalesce polls within one dyno and briefly cache even upstream failures.
+let pending: ReturnType<typeof loadPlayback> | undefined
+let cached: Awaited<ReturnType<typeof loadPlayback>> | undefined
+let cacheUntil = 0
+
+async function loadPlayback() {
   let stored = null
   try {
-    if (renewalStoreReady()) stored = await readSpotifyAuthorization()
+    if (renewalStoreReady()) stored = await readSpotifyAuthorizationSnapshot()
   } catch {
     return {
       code: 'STORAGE_UNAVAILABLE',
@@ -27,11 +32,19 @@ export default defineEventHandler(async () => {
           // Provider may rotate a refresh token; retain original six-month
           // authorization timestamp, and never persist a new token from the
           // older Heroku fallback after a website reauthorization.
-          const latest = await readSpotifyAuthorization()
-          if (latest && latest.refreshToken === stored.refreshToken) {
-            await writeSpotifyAuthorization({ ...latest, refreshToken: token })
-          }
+          await rotateSpotifyAuthorization(stored, token)
         }
       : undefined
   })
+}
+
+export default defineEventHandler(async () => {
+  if (cached && Date.now() < cacheUntil) return cached
+  pending ??= loadPlayback().then(result => {
+    cached = result
+    cacheUntil = Date.now() + 5000
+    return result
+  }).finally(() => { pending = undefined })
+  return pending
 })
+
