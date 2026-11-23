@@ -22,15 +22,17 @@ jobs:
       - run: npm install --no-audit --no-fund
       - run: npm install --no-save playwright
       - run: npx playwright install --with-deps chromium
-      - name: Start Nuxt preview server
+      - name: Build Nuxt
+        run: npm run build
+      - name: Start production preview server
         run: |
-          npm run dev -- --host 127.0.0.1 --port 3456 > /tmp/nuxt-weather-preview.log 2>&1 &
+          NITRO_PORT=3456 NITRO_HOST=127.0.0.1 node .output/server/index.mjs > /tmp/nuxt-weather-preview.log 2>&1 &
           echo $! > /tmp/nuxt-weather-preview.pid
-          for attempt in $(seq 1 80); do
+          for attempt in $(seq 1 30); do
             if curl -fsS http://127.0.0.1:3456/__weather-preview > /dev/null; then
               exit 0
             fi
-            sleep 3
+            sleep 2
           done
           cat /tmp/nuxt-weather-preview.log
           exit 1
