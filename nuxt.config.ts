@@ -9,7 +9,8 @@ export default defineNuxtConfig({
   },
   runtimeConfig: {
     // Set NUXT_TOMTOM_TRAFFIC_KEY in the server environment.
-    tomtomTrafficKey: ''
+    tomtomTrafficKey: '',
+    wsdotAccessCode: ''
   },
   experimental: {
     asyncContext: true
