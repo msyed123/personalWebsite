@@ -121,6 +121,9 @@ const radarLayers = shallowRef([])
 const timestamps = ref([])
 const currentFrame = ref(0)
 const isPlaying = ref(false)
+// Keep precipitation vivid alone, but let congested roads remain visible beneath rain.
+const RADAR_OPACITY_SOLO = 0.95
+const RADAR_OPACITY_WITH_TRAFFIC = 0.55
 const trafficStatus = ref('NO KEY')
 const trafficVisible = ref(false)
 const trafficLayerReady = ref(false)
@@ -160,8 +163,10 @@ function showFrame(index) {
   if (radarLayers.value.length === 0) return;
   // Hide all
   radarLayers.value.forEach(layer => layer.setOpacity(0));
-  // Show target
-  radarLayers.value[index].setOpacity(1); // Grid layer opacity native works weirdly sometimes, 1 is best
+  // The radar tiles remain pixelated; only their composite opacity changes.
+  radarLayers.value[index].setOpacity(
+    trafficVisible.value ? RADAR_OPACITY_WITH_TRAFFIC : RADAR_OPACITY_SOLO
+  );
   currentFrame.value = index;
 }
 
@@ -181,6 +186,7 @@ function toggleTraffic() {
   if (weatherMapDisposed || !trafficController || !trafficLayerReady.value) return
   trafficVisible.value = !trafficVisible.value
   trafficController.setVisible(trafficVisible.value)
+  showFrame(currentFrame.value)
 }
 
 function zoomIn() {
@@ -274,6 +280,7 @@ onMounted(async () => {
       onReady: (ready) => {
         trafficLayerReady.value = ready;
         trafficVisible.value = ready;
+        showFrame(currentFrame.value);
       },
       onSources: ({ roads, stations }) => {
         trafficRoadsEnabled.value = roads;
