@@ -1,0 +1,15 @@
+name: Public live weather traffic endpoint diagnostic
+on:
+  push:
+    branches: [diagnostics/live-traffic-20261123]
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Probe public API endpoints only
+        run: node .github/scripts/probe-public-traffic.mjs
