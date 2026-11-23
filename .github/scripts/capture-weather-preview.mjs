@@ -108,6 +108,19 @@ if (!await page.locator('button:has-text("TRAFFIC [OFF]")').isVisible()) throw n
 await card.screenshot({path:path.join(outputDir,'weather-card-polished-off.png')})
 await page.getByRole('button',{name:'Turn traffic overlay on'}).click()
 await page.getByRole('button',{name:'Turn traffic overlay off'}).waitFor({timeout:5000})
+
+// The real card appears in a narrow footer on mobile. Catch regressions there too.
+await page.setViewportSize({ width: 390, height: 844 })
+await page.waitForTimeout(1500)
+await card.screenshot({path:path.join(outputDir,'weather-card-mobile-on.png')})
+await page.getByRole('button',{name:'Turn traffic overlay off'}).click()
+await page.getByRole('button',{name:'Turn traffic overlay on'}).waitFor({timeout:5000})
+await card.screenshot({path:path.join(outputDir,'weather-card-mobile-off.png')})
+const fitsViewport = await card.evaluate(node => {
+  const bounds = node.getBoundingClientRect()
+  return bounds.left >= -1 && bounds.right <= window.innerWidth + 1
+})
+if (!fitsViewport) throw new Error('Weather card overflows mobile viewport')
 fs.writeFileSync(path.join(outputDir,'browser-debug.txt'),messages.join('\n'))
 console.log(JSON.stringify({url:page.url(),title:await page.title(),
   cardSize:await card.boundingBox(),status:(await page.locator('body').innerText()).slice(0,600),
