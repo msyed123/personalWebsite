@@ -78,9 +78,9 @@ export function readRssHeadlines(xml, source) {
   return items
 }
 
-async function providerText(url, request, maxBytes) {
+async function providerText(url, request, maxBytes, signal) {
   const res = await request(url, {
-    signal: AbortSignal.timeout(maxBytes === maxRssBytes ? 12_000 : 4500), redirect: 'error',
+    signal, redirect: 'error',
     headers: { 'User-Agent': 'msyed.space RSS reader (headlines only)' }
   })
   if (!res.ok || !res.body) throw new Error('Feed unavailable')
@@ -102,13 +102,15 @@ async function providerText(url, request, maxBytes) {
 }
 
 async function loadSource(source, request) {
-  const text = await providerText(source.feed, request, source.ranked ? 32_768 : maxRssBytes)
+  // One deadline spans the index and item requests, not a new wait per story.
+  const signal = AbortSignal.timeout(12_000)
+  const text = await providerText(source.feed, request, source.ranked ? 32_768 : maxRssBytes, signal)
   if (!source.ranked) return readRssHeadlines(text, source.label)
   const ids = JSON.parse(text)
   if (!Array.isArray(ids)) throw new Error('Unexpected story list')
   const results = await Promise.allSettled(ids.slice(0, 12).filter(id => Number.isSafeInteger(id) && id > 0)
     .map(async id => {
-      const story = JSON.parse(await providerText(HN_BASE + '/item/' + id + '.json', request, 65_536))
+      const story = JSON.parse(await providerText(HN_BASE + '/item/' + id + '.json', request, 65_536, signal))
       if (story?.type !== 'story' || story.deleted || story.dead || !Number.isFinite(story.time)) return null
       const time = new Date(story.time * 1000)
       if (!Number.isFinite(time.getTime())) return null
