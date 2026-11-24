@@ -1,68 +1,63 @@
 <template>
-  <div class="draft-root font-mono text-terminal-amber min-h-full">
-    <div v-if="loading" class="border border-terminal-blue bg-terminal-black flex flex-col items-center justify-center p-12 w-full text-terminal-blue tracking-widest uppercase font-bold text-center">
-      Loading Databanks...
-      <Loading class="mt-8 mx-auto" />
+  <div class="draft-root text-terminal-amber">
+    <div v-if="loading" role="status" class="draft-panel p-5 text-sm text-terminal-blue">Loading teams…</div>
+    <div v-else-if="loadError" class="draft-panel p-5">
+      <p role="alert" class="text-sm">The roster couldn’t be loaded.</p>
+      <button class="draft-action mt-4" type="button" @click="getDudes">Try again</button>
     </div>
+    <p v-else-if="!dudes.length" class="draft-panel p-5 text-sm">No teams are available to draw.</p>
 
-    <div v-else :class="['w-full grid gap-8 items-start transition-all duration-300 max-w-[1600px] mx-auto', (finalKnown || done) ? 'grid-cols-1' : 'grid-cols-1 xl:grid-cols-2']">
-      
-      <!-- LEFT: wheel + controls -->
-      <section v-if="!finalKnown && !done" class="flex flex-col flex-1 items-center justify-center min-h-[640px] gap-6 w-full max-w-[720px] mx-auto overflow-hidden">
-        <Wheel
-          ref="wheel"
-          :items="wheelLabels"
-          :size="720"
-          :durationMs="2800"
-          :minTurns="5"
-          :maxTurns="7"
-          @ready="wheelReady = true"
-          @spin-start="spinning = true"
-          @spin-end="handleSpinEnd"
-          class="max-w-full scale-100 md:scale-100"
-        />
-        <div class="w-full relative z-10 mt-4 px-4 xl:px-8 max-w-[400px]">
-          <button
-            class="w-full bg-terminal-blue text-terminal-black font-bold uppercase tracking-widest py-4 md:py-6 border-2 border-terminal-blue hover:bg-black hover:text-terminal-blue transition-colors disabled:opacity-50 text-base md:text-lg"
-            :disabled="isBusy || currentTeamIndex < 0 || !wheelReady"
-            @click="spinAndReveal"
-            v-show="currentTeamIndex >= 0">
-            Reveal Pick {{ currentTeamIndex + 1 }}
+    <div v-else class="draft-workspace" :class="{ 'draft-is-complete': done }">
+      <section v-if="!done" class="draft-panel draft-draw" aria-labelledby="draw-title">
+        <div class="panel-bar">
+          <h2 id="draw-title">{{ finalKnown ? 'Final reveal' : 'Draw console' }}</h2>
+          <span>{{ currentTeamIndex + 1 }} left</span>
+        </div>
+        <div v-if="!finalKnown" class="draft-wheel">
+          <Wheel ref="wheel" :items="wheelLabels" :size="600" :durationMs="2800" :minTurns="5" :maxTurns="7"
+            @ready="wheelReady = true" @spin-start="spinning = true" @spin-end="handleSpinEnd" />
+        </div>
+        <div v-else class="final-callout">
+          <span aria-hidden="true">01</span>
+          <p>One team left. Reveal who picks first.</p>
+        </div>
+        <div class="draft-controls">
+          <p class="text-xs text-terminal-amber-dim">{{ finalKnown ? 'Final pick' : 'Draws run from last pick to first.' }}</p>
+          <button v-if="!finalKnown" type="button" class="draft-action"
+            :disabled="isBusy || currentTeamIndex < 0 || !wheelReady" @click="spinAndReveal">
+            {{ spinning ? 'Drawing…' : 'Reveal pick ' + (currentTeamIndex + 1) }}
+          </button>
+          <button v-else type="button" class="draft-action" :disabled="isBusy" @click="revealFinal">
+            Reveal first overall
           </button>
         </div>
       </section>
 
-      <!-- RIGHT: revealed list -->
-      <section class="flex-1 w-full max-w-4xl mx-auto xl:mx-0 pr-2 pb-16 min-h-[640px]">
-        <div v-if="finalKnown && !done" class="sticky top-0 z-50 py-4 mb-4 text-center bg-black/80 backdrop-blur-md">
-          <button
-            class="min-w-[280px] w-full max-w-md mx-auto bg-amber-400 text-black font-bold uppercase tracking-widest py-6 px-8 border-2 border-amber-400 hover:bg-black hover:text-amber-400 transition-colors disabled:opacity-50 text-lg md:text-xl"
-            :disabled="isBusy || currentTeamIndex < 0"
-            @click="revealFinal">
-            Reveal FIRST OVERALL
-          </button>
+      <section class="draft-panel draft-results" aria-labelledby="results-title">
+        <div class="panel-bar">
+          <h2 id="results-title">Pick order</h2>
+          <span>{{ revealedTeams.length }} / {{ dudes.length }} revealed</span>
         </div>
-
-        <h4 v-if="revealedTeams.length" class="text-center font-bold mb-6 text-xl tracking-widest uppercase text-terminal-amber">Pick Order</h4>
-
-        <TransitionGroup tag="ul" name="slide" class="space-y-4">
-          <li
-            v-for="(dude, index) in revealedTeams"
-            :key="dude._key || index"
-          >
-            <div class="relative mx-auto border bg-black/50 flex flex-col md:flex-row items-center p-4 md:p-6 gap-6 transition-all duration-300" :class="cardClasses(index, dude)">
-              <div class="w-32 h-32 md:w-40 md:h-40 shrink-0 border border-terminal-amber-dim bg-black p-1 shadow-inner">
-                <img v-if="dude.data.picture?.url" :src="dude.data.picture.url" class="w-full h-full object-cover filter grayscale hover:grayscale-0 transition-all duration-300" />
-              </div>
-              <div class="flex-1 text-left w-full">
-                <div class="bg-terminal-blue text-terminal-black px-4 py-1.5 font-bold inline-block mb-4 select-none text-sm tracking-widest uppercase shadow-sm">> Pick {{ pickNumber(index) }}</div>
-                <div class="text-3xl md:text-4xl text-terminal-amber font-bold tracking-wide uppercase mb-3 drop-shadow-md">{{ dude.data.name[0]?.text || 'UNKNOWN' }}</div>
-                <ul class="space-y-1.5 text-sm md:text-base text-terminal-amber-dim tracking-wider font-mono list-none p-0">
-                  <li><span class="opacity-50 select-none">[Stnd]:</span> {{ dude.data.standing }}</li>
-                  <li><span class="opacity-50 select-none">[Rec] :</span> {{ dude.data.previousrecord[0]?.text }}</li>
-                  <li><span class="opacity-50 select-none">[Team]:</span> {{ dude.data.previousteamname[0]?.text }}</li>
-                </ul>
-              </div>
+        <p v-if="!revealedTeams.length" class="draft-empty">Revealed picks will appear here.</p>
+        <p class="sr-only" role="status" aria-live="polite">
+          {{ done ? 'Draft order complete.' : revealedTeams.length
+            ? 'Pick ' + pickNumber(0) + ': ' + revealedTeams[0].data.name?.[0]?.text : '' }}
+        </p>
+        <TransitionGroup tag="ol" name="slide" class="m-0 list-none p-0" aria-label="Revealed picks">
+          <li v-for="(dude, index) in revealedTeams" :key="dude._key" class="draft-pick"
+            :class="{ 'first-pick': pickNumber(index) === 1 }" :data-pick="pickNumber(index)">
+            <div class="pick-number"><span class="sr-only">Pick </span>{{ String(pickNumber(index)).padStart(2, '0') }}</div>
+            <div aria-hidden="true" class="pick-avatar">
+              <img v-if="dude.data.picture?.url" :src="dude.data.picture.url" alt="" loading="lazy">
+              <span v-else>{{ firstName(dude.data.name?.[0]?.text).slice(0, 2) }}</span>
+            </div>
+            <div class="min-w-0">
+              <h3 class="break-words font-bold text-terminal-amber">{{ dude.data.name?.[0]?.text || 'Unknown' }}</h3>
+              <p v-if="dude.data.previousteamname?.[0]?.text" class="mt-1 break-words text-xs text-terminal-amber-dim">{{ dude.data.previousteamname[0].text }}</p>
+              <p v-if="dude.data.standing || dude.data.previousrecord?.[0]?.text" class="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-terminal-amber-dim">
+                <span v-if="dude.data.standing">Place: {{ dude.data.standing }}</span>
+                <span v-if="dude.data.previousrecord?.[0]?.text">Record: {{ dude.data.previousrecord[0].text }}</span>
+              </p>
             </div>
           </li>
         </TransitionGroup>
@@ -72,30 +67,36 @@
 </template>
 
 <script>
-import Loading from "~/components/Loading.vue";
 import Wheel from "~/components/Wheel.vue";
 
 export default {
   name: "Draft",
-  components: { Loading, Wheel },
+  components: { Wheel },
   data() {
     return {
       loading: true,
+      loadError: false,
       dudes: [],
       revealedTeams: [],
       currentTeamIndex: null,
       spinning: false,
-      flying: false,
       wheelReady: false,
       done: false,
     };
   },
   computed: {
-    isBusy() { return this.spinning || this.flying; },
+    isBusy() { return this.spinning; },
     wheelLabels() {
       if (this.currentTeamIndex == null) return [];
       const remaining = this.dudes.slice(0, this.currentTeamIndex + 1);
-      return remaining.map(d => this.firstName(d?.data?.name?.[0]?.text || ""));
+      const names = remaining.map(d => d.data.name?.[0]?.text || "Unknown");
+      const firstNames = names.map(name => this.firstName(name));
+      return names.map((name, i) => {
+        const first = firstNames[i];
+        if (firstNames.filter(label => label === first).length === 1) return first;
+        const surname = name.trim().split(/\s+/).at(-1);
+        return surname && surname !== first ? first + " " + surname[0] + "." : first;
+      });
     },
     finalKnown() { return this.currentTeamIndex === 0; },
   },
@@ -107,24 +108,25 @@ export default {
     },
     pickNumber(index) { return this.dudes.length - this.revealedTeams.length + index + 1; },
 
-    cardClasses(index, dude) {
-      const pickNum = this.pickNumber(index);
-      return {
-        'border-amber-400 shadow-[0_0_30px_rgba(251,191,36,0.3)] bg-gradient-to-br from-black/80 to-amber-900/20': pickNum === 1,
-        'border-terminal-blue shadow-[0_0_15px_rgba(45,212,191,0.15)]': pickNum !== 1,
-      };
-    },
-
     async getDudes() {
       const { $prismic } = useNuxtApp();
-      const response = await $prismic.client.getAllByType("dude");
-      this.dudes = response.map(result => ({ ...result, _key: result.id || Math.random().toString() }));
-
-      // Fisher–Yates shuffle
-      let i = this.dudes.length;
-      while (i) { const j = Math.floor(Math.random() * i--); [this.dudes[i], this.dudes[j]] = [this.dudes[j], this.dudes[i]]; }
-      this.loading = false;
-      this.currentTeamIndex = this.dudes.length - 1;
+      this.loading = true;
+      this.loadError = false;
+      try {
+        const response = await $prismic.client.getAllByType("dude");
+        this.dudes = response.map(result => ({ ...result, _key: result.id || Math.random().toString() }));
+        // Keep the existing Fisher–Yates draw order.
+        let i = this.dudes.length;
+        while (i) {
+          const j = Math.floor(Math.random() * i--);
+          [this.dudes[i], this.dudes[j]] = [this.dudes[j], this.dudes[i]];
+        }
+        this.currentTeamIndex = this.dudes.length - 1;
+      } catch {
+        this.loadError = true;
+      } finally {
+        this.loading = false;
+      }
     },
 
     handleSpinEnd() { this.spinning = false; },
@@ -134,15 +136,15 @@ export default {
       if (this.currentTeamIndex === 0) return;
 
       const wheel = this.$refs.wheel;
-      const fullName = this.dudes[this.currentTeamIndex]?.data?.name?.[0]?.text || "";
-      const first = this.firstName(fullName);
 
       if (!wheel || typeof wheel.spinTo !== "function") {
          this.revealViaInsertOnly(this.currentTeamIndex);
          return;
       }
 
-      await wheel.spinTo(first);
+      // The remaining array is in wheel order. Using its position also makes
+      // the pointer settle on the correct segment when two names match.
+      await wheel.spinTo(this.currentTeamIndex);
       
       const raw = this.dudes[this.currentTeamIndex];
       this.revealedTeams.unshift(raw);
@@ -164,12 +166,81 @@ export default {
       }
     },
   },
-  created() { this.getDudes(); }
+  mounted() { this.getDudes(); }
 };
 </script>
 
+
 <style scoped>
-.slide-enter-active, .slide-leave-active { transition: all 0.5s cubic-bezier(.55,0,.1,1); }
-.slide-enter-from { opacity: 0; transform: translateX(50px) scale(0.95); }
-.slide-leave-to { opacity: 0; transform: translateY(30px) scale(0.95); }
+.draft-root {
+  --panel-bg: #0a0a0a;
+  --bar-bg: #141008;
+  --bar-text: #ffca64;
+  --line: rgb(179 119 0 / 50%);
+  --muted: #b37700;
+  --accent: #00d2ff;
+  --highlight: #ffb000;
+  --highlight-wash: rgb(255 176 0 / 9%);
+  --avatar-bg: #1a1510;
+}
+:global(body.light-theme .draft-root) {
+  --panel-bg: #f8f8f8;
+  --bar-bg: #eceef0;
+  --bar-text: #414b54;
+  --line: #c2c8cd;
+  --muted: #59616a;
+  --accent: #005bb5;
+  --highlight: #874d00;
+  --highlight-wash: #f7edda;
+  --avatar-bg: #eceef0;
+}
+.draft-workspace { display: grid; gap: 1rem; align-items: start; }
+.draft-panel { min-width: 0; border: 1px solid var(--line); background: var(--panel-bg); }
+.panel-bar {
+  display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap;
+  gap: .3rem .75rem; padding: .75rem 1rem; border-bottom: 1px solid var(--line);
+  background: var(--bar-bg); color: var(--bar-text); font-size: .72rem; letter-spacing: .05em;
+}
+.panel-bar h2 { font-size: .82rem; font-weight: 700; }
+.panel-bar span { color: var(--accent); font-variant-numeric: tabular-nums; }
+.draft-wheel { padding: 1rem 1rem .5rem; }
+.draft-controls { display: grid; gap: .5rem; padding: .85rem 1rem 1rem; text-align: center; }
+.draft-action {
+  min-height: 44px; padding: .65rem 1rem; border: 1px solid var(--accent);
+  background: rgb(0 210 255 / 10%); color: var(--accent); font-size: .85rem; font-weight: 700;
+}
+.draft-action:hover:not(:disabled) { background: var(--accent); color: var(--panel-bg); }
+.draft-action:focus-visible { outline: 2px solid var(--highlight); outline-offset: 3px; }
+.draft-action:disabled { opacity: .45; cursor: default; }
+.draft-empty { padding: 1.2rem 1rem; font-size: .8rem; color: var(--muted); }
+.final-callout { display: grid; gap: .4rem; padding: 1.25rem 1rem; text-align: center; }
+.final-callout span { color: var(--highlight); font-size: 2.5rem; font-weight: 700; line-height: 1; }
+.final-callout p { font-size: .8rem; }
+.draft-pick {
+  display: grid; grid-template-columns: 2ch 2.35rem minmax(0, 1fr);
+  align-items: center; gap: .75rem; padding: .8rem 1rem;
+  border-bottom: 1px solid var(--line);
+}
+.draft-pick:last-child { border-bottom: 0; }
+.pick-number { color: var(--accent); font-weight: 700; font-variant-numeric: tabular-nums; }
+.first-pick { background: var(--highlight-wash); box-shadow: inset 2px 0 var(--highlight); }
+.first-pick .pick-number { color: var(--highlight); }
+.pick-avatar {
+  display: grid; place-items: center; aspect-ratio: 1; border: 1px solid var(--line);
+  background: var(--avatar-bg); color: var(--bar-text); font-size: .65rem; text-transform: uppercase; overflow: hidden;
+}
+.pick-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.slide-enter-active, .slide-move { transition: transform .22s ease, opacity .22s ease; }
+.slide-enter-from { opacity: 0; transform: translateY(-.3rem); }
+@media (max-width: 639px) {
+  .draft-controls { display: flex; flex-direction: column-reverse; }
+  .draft-wheel { padding-top: .75rem; }
+}
+@media (min-width: 800px) {
+  .draft-workspace { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 1.25rem; }
+  .draft-is-complete { grid-template-columns: minmax(0, 1fr); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .slide-enter-active, .slide-move { transition: none; }
+}
 </style>

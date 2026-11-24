@@ -1,0 +1,29 @@
+name: Draft order picker browser smoke
+on:
+  pull_request:
+    paths:
+      - 'pages/draft.vue'
+      - 'components/Draft.vue'
+      - 'components/Wheel.vue'
+      - 'tests/draft-order-browser.mjs'
+      - '.github/workflows/draft-order-browser.yml'
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm install --no-audit --no-fund
+      - run: npm test
+      - run: npm run build
+      - run: npm install --no-save playwright
+      - run: npx playwright install chromium --only-shell
+      - run: node tests/draft-order-browser.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: draft-order-previews
+          path: preview-output/draft-*.png
