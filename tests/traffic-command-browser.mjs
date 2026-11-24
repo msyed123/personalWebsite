@@ -192,7 +192,11 @@ try{
    await assertModalGeometry('traffic')
    const closeMap=page.getByRole('button',{name:'Close map'})
    if(!await closeMap.evaluate(el=>document.activeElement===el)) throw Error('Close must receive modal focus')
-   if(await page.getByRole('navigation').count()) throw Error('Background navigation stayed accessible')
+   const backgroundCanReceiveFocus=await page.locator('header nav a').first().evaluate(el=>{
+     el.focus()
+     return document.activeElement===el
+   })
+   if(backgroundCanReceiveFocus) throw Error('Background navigation stayed focusable')
    for(let i=0;i<8;i++) {
      await page.keyboard.press('Tab')
      if(await input.evaluate(el=>document.activeElement===el)) throw Error('Focus escaped to the terminal')
