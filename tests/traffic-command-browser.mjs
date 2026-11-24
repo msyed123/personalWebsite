@@ -93,7 +93,7 @@ try{
    })
    let radarRefreshStage = 0
    await page.route('https://api.rainviewer.com/public/weather-maps.json',route=>route.fulfill({
-     ...((radarRefreshStage === 2) ? {status:503} : {status:200}),
+     status:radarRefreshStage === 2 ? 503 : 200,
      contentType:'application/json',
      body:JSON.stringify({radar:{past:[
        {path:'/v2/radar/test-1',time:1763870700},

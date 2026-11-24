@@ -12,15 +12,17 @@
 {{ asciiArt }}
         </div>
         <div class="min-w-0 flex-1">
-          <div class="text-xs uppercase tracking-widest text-terminal-amber-dim mb-1" :class="{'animate-pulse': isPlaying}">{{ weatherLayer === 'radar' ? 'RADAR SIGNAL' : 'MODEL PRECIPITATION FORECAST' }}</div>
-          <div class="text-lg sm:text-xl font-bold text-terminal-blue leading-tight break-words">{{ weatherData.location }}</div>
-          <div role="status" data-weather-freshness class="mt-1 flex items-center gap-1.5 text-[10px] tabular-nums"
-            :class="refreshDelayed ? 'text-terminal-amber' : newWeatherData ? 'text-green-400' : 'text-terminal-amber-dim'">
-            <span aria-hidden="true" class="inline-block h-1.5 w-1.5 shrink-0 rounded-full"
-              :class="newWeatherData && !refreshDelayed ? 'bg-green-400' : 'bg-current opacity-70'"></span>
-            <span v-if="feedRevision">{{ refreshDelayed ? 'Refresh delayed · ' : newWeatherData ? 'New data · ' : '' }}{{ weatherLayer === 'radar' ? 'Radar ' : 'Model run ' }}{{ formatFeedTime(feedRevision) }}</span>
-            <span v-else>{{ layerStatus }}</span>
+          <div class="map-signal-heading mb-1 flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
+            <div class="text-xs uppercase tracking-widest text-terminal-amber-dim" :class="{'animate-pulse': isPlaying}">{{ weatherLayer === 'radar' ? 'RADAR SIGNAL' : 'MODEL PRECIPITATION FORECAST' }}</div>
+            <div role="status" data-weather-freshness class="flex items-center gap-1.5 text-[10px] tabular-nums"
+              :class="refreshDelayed ? 'text-terminal-amber' : newWeatherData ? 'text-green-400' : 'text-terminal-amber-dim'">
+              <span aria-hidden="true" class="inline-block h-1.5 w-1.5 shrink-0 rounded-full"
+                :class="newWeatherData && !refreshDelayed ? 'bg-green-400' : 'bg-current opacity-70'"></span>
+              <span v-if="feedRevision">{{ refreshDelayed ? 'Refresh delayed · ' : newWeatherData ? 'New data · ' : '' }}{{ weatherLayer === 'radar' ? 'Radar ' : 'Model run ' }}{{ formatFeedTime(feedRevision) }}</span>
+              <span v-else>{{ layerStatus }}</span>
+            </div>
           </div>
+          <div class="text-lg sm:text-xl font-bold text-terminal-blue leading-tight break-words">{{ weatherData.location }}</div>
         </div>
       </div>
       <div class="flex items-end gap-2 justify-start sm:justify-end shrink-0 sm:pb-0.5">
