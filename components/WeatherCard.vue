@@ -1,8 +1,7 @@
 <template>
-  <dialog ref="dialog" data-terminal-map-card class="map-dialog font-mono text-sm border border-terminal-amber/30 p-3 sm:px-4 min-w-0 bg-terminal-black text-terminal-amber shadow-lg"
-    :aria-label="`${trafficOnly ? 'Traffic' : 'Weather'} map: ${weatherData.location}`"
-    @cancel.prevent="closeDialog">
-    <button ref="closeButton" type="button" autofocus aria-label="Close map" @click="closeDialog"
+  <section data-terminal-map-card class="map-panel font-mono text-sm border border-terminal-amber/30 p-3 sm:px-4 min-w-0 bg-terminal-black text-terminal-amber shadow-lg"
+    :aria-label="`${trafficOnly ? 'Traffic' : 'Weather'} map: ${weatherData.location}`">
+    <button type="button" aria-label="Close map" @click="$emit('close')"
       class="map-close text-terminal-amber bg-terminal-black border border-terminal-amber-dim hover:text-red-500 hover:border-red-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-terminal-blue">[x]</button>
 
     <!-- Weather Data Top Bar -->
@@ -176,7 +175,7 @@
       <span v-else>> Source: Road flow / highway sensors</span>
       <span><a href="https://openfreemap.org/" target="_blank" rel="noopener noreferrer" class="underline">OpenFreeMap</a> © OpenMapTiles / <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer" class="underline">OpenStreetMap</a><template v-if="trafficRoadsEnabled"> / Traffic © <a href="https://www.tomtom.com/" target="_blank" rel="noopener noreferrer" class="underline">TomTom</a></template><template v-if="trafficStationsEnabled"> / <a href="https://wsdot.wa.gov/traffic/api/" target="_blank" rel="noopener noreferrer" class="underline">WSDOT</a></template></span>
     </div>
-  </dialog>
+  </section>
 </template>
 
 <script setup>
@@ -221,15 +220,8 @@ const asciiArt = computed(() => {
   return `\n _-_ _-_ \n  _-_ -_ \n _-_ _-_ \n         `;
 });
 
-const emit = defineEmits(['close'])
-const dialog = ref(null)
-const closeButton = ref(null)
+defineEmits(['close'])
 let resizeObserver
-
-function closeDialog() {
-  dialog.value?.close()
-  emit('close')
-}
 
 const mapContainer = ref(null)
 const mapInstance = shallowRef(null)
@@ -368,14 +360,6 @@ function zoomOut() {
 }
 
 onMounted(async () => {
-  // A touch user just used the terminal keyboard. Dismiss it rather than
-  // restoring an editable control that can cover the map again on close.
-  if (navigator.maxTouchPoints > 0 && document.activeElement instanceof HTMLInputElement) {
-    document.activeElement.blur()
-  }
-  dialog.value.showModal()
-  closeButton.value?.focus({ preventScroll: true })
-
   // Dynamically import Leaflet so it doesn't break Nuxt 3 SSR
   const L = (await import('leaflet')).default;
   const { maplibreGL } = await import('@maplibre/maplibre-gl-leaflet');
@@ -626,40 +610,18 @@ onUnmounted(() => {
   outline: 2px solid #00d2ff;
 }
 
-:global(html:has(.map-dialog[open])),
-:global(body:has(.map-dialog[open])) {
-  overflow: hidden;
-  overscroll-behavior: none;
-}
-
-.map-dialog {
-  --map-margin: clamp(8px, 1.35vmin, 16px);
-  position: fixed;
-  inset-block-start: max(var(--map-margin), env(safe-area-inset-top));
-  inset-block-end: max(var(--map-margin), env(safe-area-inset-bottom));
-  inset-inline-start: max(var(--map-margin), env(safe-area-inset-left));
-  inset-inline-end: max(var(--map-margin), env(safe-area-inset-right));
-  margin: 0;
-  inline-size: auto;
-  block-size: auto;
-  max-inline-size: none;
-  max-block-size: none;
+.map-panel {
+  flex: 1 1 0;
+  min-block-size: 0;
+  display: flex;
+  flex-direction: column;
+  gap: .65rem;
   overflow: auto;
   overscroll-behavior: contain;
 }
 
-.map-dialog[open] {
-  display: flex;
-  flex-direction: column;
-  gap: 0.65rem;
-}
-
-.map-dialog > :not(.map-workspace) {
+.map-panel > :not(.map-workspace) {
   flex-shrink: 0;
-}
-
-.map-dialog::backdrop {
-  background: rgb(0 0 0 / 75%);
 }
 
 .map-close {
