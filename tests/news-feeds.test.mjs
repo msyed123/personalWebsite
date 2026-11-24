@@ -110,3 +110,23 @@ test('previews only use plain publisher excerpts and explicitly credited NASA me
   assert.equal(npr.image, undefined)
   assert.equal(readRssHeadlines(xml(build('')), 'City of Seattle')[0].summary, undefined)
 })
+
+test('Universe Today uses actual lead photos with per-image credit and reuse terms', () => {
+  const imageUrl = 'https://www.universetoday.com/article_images/space.jpg'
+  const build = (caption, image = imageUrl, extra = '') => `<item><title>A space story</title>
+    <link>https://www.universetoday.com/articles/story</link><pubDate>${date}</pubDate>
+    <description><![CDATA[<p><img src="${image}" alt="${caption}" />${extra}</p><p>Story excerpt.</p>]]></description></item>`
+  const [nasa, licensed, partner, nc, otherHost, otherPath, ambiguous] = readRssHeadlines(rss(
+    build('Satellites overhead. Credit: NASA'),
+    build('The Betta Fish Nebula. Image Credit: CTIO/NOIRLab/DOE/NSF/AURA Creative Commons Attribution 4.0 International License'),
+    build('A spacecraft. Credit: NASA/ESA'),
+    build('A spacecraft. Credit: Artist Creative Commons Attribution-NonCommercial 4.0 International License'),
+    build('A spacecraft. Credit: NASA', 'https://www.universetoday.com.example.com/article_images/x.jpg'),
+    build('A spacecraft. Credit: NASA', 'https://www.universetoday.com/tracking.jpg'),
+    build('A spacecraft. Credit: NASA', imageUrl, '<img src="https://www.universetoday.com/article_images/other.jpg">')
+  ), 'Universe Today')
+  assert.deepEqual(nasa.image, { url: imageUrl, alt: 'Satellites overhead.', credit: 'NASA' })
+  assert.equal(nasa.summary, 'Story excerpt.')
+  assert.deepEqual(licensed.image, { url: imageUrl, alt: 'The Betta Fish Nebula.', credit: 'CTIO/NOIRLab/DOE/NSF/AURA', license: 'CC BY 4.0' })
+  for (const entry of [partner, nc, otherHost, otherPath, ambiguous]) assert.equal(entry.image, undefined)
+})

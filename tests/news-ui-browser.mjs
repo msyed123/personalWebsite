@@ -16,7 +16,7 @@ const article = {
   title: 'Moon test headline', source: 'NASA', byline: 'Test Editor',
   url: 'https://www.nasa.gov/test-story/', publishedAt: '2026-11-24T20:00:00Z',
   summary: 'Test plain text <em>not markup</em>.',
-  image: { url: 'https://www.nasa.gov/test-image.svg', alt: 'Moon test illustration', credit: 'NASA' }
+  image: { url: 'https://www.nasa.gov/test-image.svg', alt: 'Moon test illustration', credit: 'NASA', license: 'CC BY 4.0' }
 }
 const broken = {
   ...article, title: 'Unavailable image headline', url: 'https://www.nasa.gov/test-broken/',
@@ -75,7 +75,10 @@ try {
   const image = storyButton.getByRole('img', { name: 'Moon test illustration' })
   assert.equal(await image.getAttribute('loading'), 'lazy')
   assert.equal(await image.getAttribute('referrerpolicy'), 'no-referrer')
-  await dialog.getByRole('button', { name: /Unavailable image headline/ }).locator('.news-artwork-fallback').waitFor()
+  const brokenStory = dialog.getByRole('button', { name: /Unavailable image headline/ })
+  await brokenStory.locator('.news-photo').waitFor({ state: 'hidden' })
+  assert.equal(await dialog.getByRole('button', { name: /Headline without a photo/ }).locator('img, .news-photo').count(), 0)
+  assert.equal(await dialog.getByRole('link', { name: 'Open as page' }).count(), 0)
   await storyButton.click()
   const preview = dialog.getByRole('dialog', { name: 'Moon test headline' })
   await preview.waitFor()
@@ -83,6 +86,7 @@ try {
   assert.ok(await back.evaluate(el => el === document.activeElement))
   assert.equal(await preview.getByText(article.summary, { exact: true }).count(), 1)
   assert.equal(await preview.getByRole('link', { name: /Read original/ }).getAttribute('href'), article.url)
+  assert.equal(await preview.getByRole('link', { name: 'CC BY 4.0' }).getAttribute('href'), 'https://creativecommons.org/licenses/by/4.0/')
   assert.equal(await preview.locator('iframe').count(), 0)
   await back.press('Escape')
   assert.ok(await storyButton.evaluate(el => el === document.activeElement))
@@ -117,20 +121,16 @@ try {
   await mobileDialog.getByRole('button', { name: 'Close news' }).tap()
   await mobileDialog.waitFor({ state: 'hidden' })
 
-  // The route still serves the feed on a direct visit, using local test RSS.
+  // The old standalone route is gone; live data remains in the terminal.
+  assert.equal((await fetch(origin + '/news?topic=seattle')).status, 404)
   await desktop.unroute('**/api/news?topic=*')
-  await desktop.goto(origin + '/news?topic=seattle')
-  await desktop.getByRole('heading', { name: 'Seattle' }).waitFor()
-  assert.equal(await desktop.locator('nav[aria-label="News topics"] [aria-current="page"]').count(), 1)
-  await command(desktop, 'news')
-  await dialog.getByRole('heading', { name: 'Headlines' }).waitFor()
-  assert.equal(new URL(desktop.url()).searchParams.get('topic'), 'seattle')
-  await dialog.getByRole('button', { name: 'Close news' }).click()
-  await desktop.getByRole('button', { name: /A sample Seattle headline/ }).click()
-  await desktop.getByRole('dialog', { name: 'A sample Seattle headline' }).waitFor()
-  await desktop.getByRole('button', { name: /Back to headlines/ }).click()
-  assert.ok(await desktop.getByRole('button', { name: /A sample Seattle headline/ }).isVisible())
-  console.log('PASS: terminal news modal, article previews, source imagery/fallback, scroll/focus restoration, map replacement, and bookmarked feed')
+  await command(desktop, 'news --topic seattle')
+  await dialog.getByRole('heading', { name: 'Seattle' }).waitFor()
+  await dialog.getByRole('button', { name: /A sample Seattle headline/ }).click()
+  await dialog.getByRole('dialog', { name: 'A sample Seattle headline' }).waitFor()
+  await dialog.getByRole('button', { name: /Back to headlines/ }).click()
+  assert.ok(await dialog.getByRole('button', { name: /A sample Seattle headline/ }).isVisible())
+  console.log('PASS: terminal-only news, article photos and previews, text-only stories, scroll/focus restoration and map replacement')
 } finally {
   await browser?.close()
   child.kill()

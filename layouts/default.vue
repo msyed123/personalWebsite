@@ -17,7 +17,6 @@
         <NuxtLink to="/courses" class="text-terminal-amber-dim hover:text-terminal-amber transition-colors duration-200 uppercase before:content-['//_'] before:text-terminal-blue before:mr-1">courses</NuxtLink>
         <NuxtLink to="/contact" class="text-terminal-amber-dim hover:text-terminal-amber transition-colors duration-200 uppercase before:content-['//_'] before:text-terminal-blue before:mr-1">contact</NuxtLink>
         <NuxtLink to="/diary" class="text-terminal-amber-dim hover:text-terminal-amber transition-colors duration-200 uppercase before:content-['//_'] before:text-terminal-blue before:mr-1">diary</NuxtLink>
-        <NuxtLink to="/news" class="text-terminal-amber-dim hover:text-terminal-amber transition-colors duration-200 uppercase before:content-['//_'] before:text-terminal-blue before:mr-1">news</NuxtLink>
       </nav>
     </header>
 
@@ -33,7 +32,7 @@
       <WeatherCard v-if="weatherData" :key="activeMapKey"
         :weatherData="weatherData" :mode="activeCardMode" @close="dismissWorkspace" />
       <NewsReader v-else-if="activeNewsTopic" :key="activeNewsKey" ref="newsReader" class="border border-terminal-amber-dim bg-terminal-black"
-        overlay :topic="activeNewsTopic" @topic="activeNewsTopic = $event" @close="dismissWorkspace" />
+        :topic="activeNewsTopic" @topic="activeNewsTopic = $event" @close="dismissWorkspace" />
       <footer class="sticky bottom-0 z-50 w-full backdrop-blur-md border-t border-terminal-amber-dim bg-terminal-black/95 opacity-95 px-4 py-4 flex flex-col gap-2 text-sm md:text-base">
         <!-- Spotify card output -->
         <div v-if="spotifyData && !spotifyData.error" class="w-full pb-2 mb-2 border-b border-terminal-amber-dim/20 flex justify-center">
@@ -254,7 +253,7 @@ onUnmounted(() => {
   viewport?.removeEventListener('scroll', syncVisualViewport)
 })
 
-const availableDirs = ['about', 'projects', 'courses', 'contact', 'diary', 'news', 'home']
+const availableDirs = ['about', 'projects', 'courses', 'contact', 'diary', 'home']
 const cmdState = ref('normal') // 'normal' | 'draft_password'
 
 const draftUnlocked = ref(false)
