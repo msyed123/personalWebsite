@@ -4,6 +4,7 @@ const commands = {
   ls: { synopsis: 'ls [-a] [-l]', summary: 'List virtual website directories.',
     options: '    -a, --all   Include . and ..\n    -l          Use long format. Combine flags as -la or -al.' },
   whoami: { synopsis: 'whoami', summary: 'Print the current virtual terminal user.' },
+  cat: { synopsis: 'cat FILE', summary: 'Read a public virtual file.', detail: 'Use ls to see the available files. Only virtual files are readable.' },
   echo: { synopsis: 'echo [--] [TEXT]', summary: 'Print the supplied text.', detail: 'Prints text literally without shell expansion. Use -- before text that starts with a hyphen.' },
   clear: { synopsis: 'clear', summary: 'Clear terminal output and close any open card or map.' },
   date: { synopsis: 'date', summary: 'Print the current local date and time.' },
@@ -81,6 +82,10 @@ export function parseTerminalCommand(input) {
     if (option(args[0])?.startsWith('-')) return usage()
     return { action: 'execute', command, argument: text }
   }
+  if (command === 'cat') {
+    if (args.length !== 1 || option(args[0]).startsWith('-')) return usage()
+    return { action: 'execute', command, argument: args[0] }
+  }
   if (command === 'weather' || command === 'traffic') {
     if (args.some(arg => option(arg).startsWith('-'))) return usage()
     return { action: 'execute', command, argument: args.join(' ') || 'Seattle' }
@@ -97,9 +102,85 @@ export function parseTerminalCommand(input) {
   return { action: 'execute', command }
 }
 
-export function formatTerminalDirectory(entries, { all, long } = {}) {
-  const names = all ? ['.', '..', ...entries] : entries
-  if (!long) return names.join('  ')
-  return 'total ' + names.length + '\n' +
-    names.map(name => 'drwxr-xr-x  2 user  staff   64B  ' + name).join('\n')
+const publicFiles = {
+  README: () => 'Welcome to Mamoon’s website terminal.\n\nUse help to see commands, ls to explore the site, and cd to visit a page.\n' +
+    'Tab completes known commands and paths. Use ↑ and ↓ to recall recent commands.\nNo real files or shell commands are available.',
+  'commands.txt': terminalHelp
+}
+
+export const virtualTerminalFiles = Object.keys(publicFiles)
+
+export function readVirtualTerminalFile(path) {
+  // Recognize only exact public names and one optional virtual root prefix.
+  // Do not normalize traversal, consult the filesystem, or make requests.
+  const normalized = path.replace(/^(?:~?\/|\.\/)/, '').toLowerCase()
+  const file = virtualTerminalFiles.find(name => name.toLowerCase() === normalized)
+  return file ? publicFiles[file]() : null
+}
+
+export function formatTerminalDirectory(entries, { all, long } = {}, files = []) {
+  const dirs = all ? ['.', '..', ...entries] : entries
+  if (!long) return [...dirs, ...files].join('  ')
+  return 'total ' + (dirs.length + files.length) + '\n' +
+    [...dirs.map(name => 'drwxr-xr-x  2 user  staff   64B  ' + name),
+      ...files.map(name => '-r--r--r--  1 user  staff         ' + name)].join('\n')
+}
+
+export function completeTerminalInput(input, directories = []) {
+  const match = /^(.*?)([^\s]*)$/.exec(input)
+  if (!match) return null
+  const [, head, word] = match
+  if (!word) return null
+  const names = [...Object.keys(commands), 'spotify']
+  const prefix = head.trim().toLowerCase()
+  const command = canonicalName(prefix)
+  let candidates
+  if (!prefix) candidates = names
+  else if (command === 'cd' && !word.startsWith('-')) {
+    const start = word.startsWith('/') ? '/' : ''
+    candidates = [...directories, 'draft', '~', '.', '..'].map(dir => start + dir)
+  } else if (command === 'cat' && !word.startsWith('-')) {
+    const start = /^(?:~?\/|\.\/)/.exec(word)?.[0] || ''
+    candidates = virtualTerminalFiles.map(file => start + file)
+  } else if (command === 'man' || command === 'help') {
+    candidates = [...names, '--help']
+  } else if (known(command)) {
+    candidates = ['--help']
+    if (command === 'nowplaying') candidates.push('--connect')
+    if (command === 'ls') candidates.push('--all', '-a', '-l', '-al', '-la')
+  } else return null
+
+  const lower = option(word).toLowerCase()
+  const matching = candidates.filter(candidate => candidate.toLowerCase().startsWith(lower))
+  if (matching.length === 1) return head + matching[0] + ' '
+  if (!matching.length) return null
+  const shared = matching.reduce((a, b) => {
+    let i = 0
+    while (i < a.length && i < b.length && a[i].toLowerCase() === b[i].toLowerCase()) i++
+    return a.slice(0, i)
+  })
+  return shared.length > lower.length ? head + shared : null
+}
+
+export function createTerminalHistory(limit = 50) {
+  const entries = []
+  let index = 0
+  let draft = ''
+  const resetCursor = () => { index = entries.length; draft = '' }
+  return {
+    remember(line) {
+      if (entries.at(-1) !== line) {
+        entries.push(line)
+        if (entries.length > limit) entries.shift()
+      }
+      resetCursor()
+    },
+    resetCursor,
+    recall(direction, current) {
+      if (!entries.length || (direction === 1 && index === entries.length)) return null
+      if (index === entries.length) draft = current
+      index = Math.min(entries.length, Math.max(0, index + direction))
+      return index === entries.length ? draft : entries[index]
+    }
+  }
 }

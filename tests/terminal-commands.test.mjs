@@ -1,6 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { formatTerminalDirectory, parseTerminalCommand, terminalManual } from '../utils/terminalCommands.js'
+import { completeTerminalInput, createTerminalHistory, formatTerminalDirectory, parseTerminalCommand,
+  readVirtualTerminalFile, terminalManual, virtualTerminalFiles } from '../utils/terminalCommands.js'
 
 test('spotify and nowplaying are the same playback command', () => {
   const playback = { action: 'execute', command: 'nowplaying' }
@@ -57,4 +58,43 @@ test('whoami is virtual and echo preserves case and literal text', () => {
   assert.equal(parseTerminalCommand('echo Hello   Seattle $HOME').argument, 'Hello   Seattle $HOME')
   assert.equal(parseTerminalCommand('echo -- -not-an-option').argument, '-not-an-option')
   assert.match(parseTerminalCommand('echo -n text').text, /Usage: echo/)
+})
+
+test('completion handles commands, flags and allowlisted paths without eating Tab on no match', () => {
+  assert.equal(completeTerminalInput('spot'), 'spotify ')
+  assert.equal(completeTerminalInput('nowplaying —con'), 'nowplaying --connect ')
+  assert.equal(completeTerminalInput('cd /pro', ['projects', 'about']), 'cd /projects ')
+  assert.equal(completeTerminalInput('cat ~/re'), 'cat ~/README ')
+  assert.equal(completeTerminalInput('man now'), 'man nowplaying ')
+  for (const current of ['spotify ', 'c', 'cd /private', 'cat ../../re', 'echo arbitrary words']) {
+    assert.equal(completeTerminalInput(current), null, current)
+  }
+})
+
+test('history is bounded, deduplicates and restores the unsent command', () => {
+  const history = createTerminalHistory(2)
+  assert.equal(history.recall(-1, ''), null)
+  history.remember('ls')
+  history.remember('whoami')
+  history.remember('whoami')
+  history.remember('pwd')
+  assert.equal(history.recall(-1, 'unsent draft'), 'pwd')
+  assert.equal(history.recall(-1, 'pwd'), 'whoami')
+  assert.equal(history.recall(-1, 'whoami'), 'whoami')
+  assert.equal(history.recall(1, 'whoami'), 'pwd')
+  assert.equal(history.recall(1, 'pwd'), 'unsent draft')
+  assert.equal(history.recall(1, 'unsent draft'), null)
+  assert.equal(createTerminalHistory().recall(-1, ''), null)
+})
+
+test('cat reads only deliberate public virtual files and ls identifies them as files', () => {
+  assert.match(readVirtualTerminalFile('/README'), /Welcome/)
+  assert.match(readVirtualTerminalFile('~/commands.txt'), /Available commands/)
+  assert.equal(readVirtualTerminalFile('../README'), null)
+  assert.equal(readVirtualTerminalFile('/etc/passwd'), null)
+  assert.equal(readVirtualTerminalFile('/.env'), null)
+  assert.match(parseTerminalCommand('cat').text, /Usage: cat FILE/)
+  assert.match(parseTerminalCommand('cat -n README').text, /Usage: cat FILE/)
+  assert.deepEqual(parseTerminalCommand('cat README'), { action:'execute', command:'cat', argument:'readme' })
+  assert.match(formatTerminalDirectory(['about'], { long:true }, virtualTerminalFiles), /-r--r--r--.*README/)
 })

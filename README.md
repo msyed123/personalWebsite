@@ -72,7 +72,12 @@ Use `help` to list commands, or `man COMMAND`, `help COMMAND`, and
 `COMMAND --help` for a manual. `ls -a` adds virtual entries `.` and `..`;
 `ls -l` uses long formatting and the flags can be combined as `ls -la`.
 `whoami` returns the virtual terminal user. `echo` prints literal text; this
-terminal does not read the host filesystem or expand shell variables.
+terminal does not read the host filesystem or expand shell variables. Use
+`cat README` or `cat commands.txt` to read the public virtual files listed by
+`ls`. On a keyboard, Tab completes known commands, flags and paths when it
+can add text; otherwise it moves focus normally. Up/Down recall recent
+commands in the current page only, with no persistence and no password
+or `echo` text recorded.
 
 ## Spotify `nowplaying` — renew directly from the website
 

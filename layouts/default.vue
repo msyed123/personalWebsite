@@ -54,6 +54,7 @@
           <input
             ref="terminalInput"
             v-model="cmdInput"
+            @keydown="handleTerminalKeys"
             aria-label="Terminal command"
             enterkeyhint="go"
             :type="cmdState === 'draft_password' ? 'password' : 'text'"
@@ -74,7 +75,10 @@
 import { nextTick, ref, watch, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { WMO_CODES } from '~/utils/weatherCodes'
-import { formatTerminalDirectory, parseTerminalCommand } from '~/utils/terminalCommands.js'
+import {
+  completeTerminalInput, createTerminalHistory, formatTerminalDirectory,
+  parseTerminalCommand, readVirtualTerminalFile, virtualTerminalFiles
+} from '~/utils/terminalCommands.js'
 
 const terminalInput = ref<HTMLInputElement | null>(null)
 const visualViewportStyle = ref<Record<string, string>>({})
@@ -216,6 +220,24 @@ const availableDirs = ['about', 'projects', 'courses', 'contact', 'diary', 'home
 const cmdState = ref('normal') // 'normal' | 'draft_password'
 
 const draftUnlocked = ref(false)
+const commandHistory = createTerminalHistory()
+
+function handleTerminalKeys(event: KeyboardEvent) {
+  if (cmdState.value !== 'normal' || event.isComposing || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return
+  let replacement = null
+  if (event.key === 'Tab') {
+    const field = terminalInput.value
+    if (field?.selectionStart !== cmdInput.value.length || field.selectionEnd !== cmdInput.value.length) return
+    replacement = completeTerminalInput(cmdInput.value, availableDirs)
+  } else if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+    replacement = commandHistory.recall(event.key === 'ArrowUp' ? -1 : 1, cmdInput.value)
+  }
+  // Unchanged or ambiguous Tab proceeds to the next focusable control.
+  if (replacement === null) return
+  event.preventDefault()
+  cmdInput.value = replacement
+  nextTick(() => terminalInput.value?.setSelectionRange(replacement.length, replacement.length))
+}
 
 const handleCommand = () => {
   const input = cmdInput.value.trim()
@@ -243,6 +265,16 @@ const handleCommand = () => {
   if (!input) return
 
   const parsed = parseTerminalCommand(input)
+  // The password prompt returns above. Also avoid retaining arbitrary echo
+  // text, unknown commands, invalid options, or non-public cat paths.
+  const remember = input.length <= 200 && (parsed.action === 'connect' ||
+    (parsed.action === 'execute' && parsed.command !== 'echo' &&
+     (parsed.command !== 'cat' || readVirtualTerminalFile(parsed.argument) !== null) &&
+     (parsed.command !== 'cd' || ['.', '..', '~', '/', 'draft', ...availableDirs]
+       .includes(parsed.argument?.replace(/^\/(?=.)/, '')))))
+  if (remember) commandHistory.remember(input)
+  else commandHistory.resetCursor()
+
   const isWeatherCommand = parsed.action === 'execute' && parsed.command === 'weather'
   const isTrafficCommand = parsed.action === 'execute' && parsed.command === 'traffic'
   // Keep the current map available while resolving a replacement. Ordinary
@@ -360,7 +392,13 @@ const handleCommand = () => {
   }
 
   if (command === 'ls') {
-    cmdOutput.value = formatTerminalDirectory([...availableDirs, 'draft (protected)'], parsed)
+    cmdOutput.value = formatTerminalDirectory([...availableDirs, 'draft (protected)'], parsed, virtualTerminalFiles)
+    return
+  }
+
+  if (command === 'cat') {
+    const file = parsed.argument || ''
+    cmdOutput.value = readVirtualTerminalFile(file) ?? 'cat: ' + file + ': No such virtual file'
     return
   }
 
