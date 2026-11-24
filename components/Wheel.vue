@@ -1,13 +1,11 @@
 <template>
-    <div class="wheel-wrap" ref="wrap">
-      <div class="wheel-stage" :style="{ width: size + 'px', height: size + 'px' }" ref="stage">
-        <canvas ref="canvas" />
-        <!-- pointer at top — triangle points DOWN -->
-        <div class="pointer top"></div>
-      </div>
-    </div>
-  </template>
-  
+  <div class="wheel-stage" :style="{ '--wheel-size': size + 'px' }" ref="stage">
+    <canvas ref="canvas" role="img" :aria-label="'Draw wheel: ' + items.join(', ')" />
+    <span class="wheel-pointer" aria-hidden="true"></span>
+    <span class="wheel-hub" aria-hidden="true"></span>
+  </div>
+</template>
+
   <script>
   export default {
     name: "Wheel",
@@ -17,14 +15,14 @@
       durationMs: { type: Number, default: 2800 },
       minTurns: { type: Number, default: 5 },
       maxTurns: { type: Number, default: 7 },
-      font: { type: String, default: "18px monospace" },
+      font: { type: String, default: 'bold 24px "JetBrains Mono", monospace' },
     },
     data() {
       return { ctx: null, radius: 0, rotation: 0, spinning: false };
     },
     mounted() {
       const canvas = this.$refs.canvas;
-      const dpr = window.devicePixelRatio || 1;
+      const dpr = Math.min(2, window.devicePixelRatio || 1);
       const ctx = canvas.getContext("2d");
   
       canvas.style.width  = "100%";
@@ -43,66 +41,67 @@
     watch: { items() { this.draw(); } },
     methods: {
       colorAt(i, n) {
-        const hue = (i * (360 / Math.max(1, n))) % 360;
-        return `hsl(${hue}, 60%, 65%)`;
+        // Restrained terminal palette; alternate values to keep adjacent
+        // segments distinct, including the seam with an odd roster.
+        if (n % 2 && i === n - 1) return "#173142";
+        return i % 2 ? "#142630" : "#30200d";
       },
       draw() {
         if (!this.ctx) return;
         const { ctx, size, radius } = this;
         const n = Math.max(1, this.items.length);
         const arc = (2 * Math.PI) / n;
-  
+
         ctx.clearRect(0, 0, size, size);
         ctx.save();
         ctx.translate(size / 2, size / 2);
         ctx.rotate(this.rotation);
-  
+
         for (let i = 0; i < n; i++) {
           const start = i * arc;
           const end = start + arc;
-  
-          // slice
           ctx.beginPath();
           ctx.moveTo(0, 0);
-          ctx.arc(0, 0, radius, start, end, false);
+          ctx.arc(0, 0, radius - 13, start, end);
           ctx.closePath();
           ctx.fillStyle = this.colorAt(i, n);
           ctx.fill();
-          ctx.lineWidth = 2;
-          ctx.strokeStyle = "#fff";
+          ctx.lineWidth = 1.5;
+          ctx.strokeStyle = "#69502c";
           ctx.stroke();
-  
-          // radial label
+
           const mid = start + arc / 2;
           ctx.save();
           ctx.rotate(mid);
-          ctx.fillStyle = "#222";
+          ctx.fillStyle = i % 2 ? "#bcf3ff" : "#ffdc9c";
           ctx.font = this.font;
           ctx.textAlign = "center";
           ctx.textBaseline = "middle";
-          const labelR = radius * 0.72;
-          const txt = (this.items[i] ?? "") + "";
-          const clipped = txt.length > 18 ? txt.slice(0, 16) + "…" : txt;
-          ctx.fillText(clipped, labelR, 0);
+          const txt = String(this.items[i] ?? "");
+          const clipped = txt.length > 15 ? txt.slice(0, 13) + "…" : txt;
+          const labelX = radius * (Math.cos(mid + this.rotation) < 0 ? -0.64 : 0.64);
+          if (labelX < 0) ctx.rotate(Math.PI);
+          ctx.fillText(clipped, labelX, 0, radius * 0.55);
           ctx.restore();
         }
-  
-        // hub
+
         ctx.beginPath();
-        ctx.arc(0, 0, radius * 0.1, 0, 2 * Math.PI);
-        ctx.fillStyle = "#eee";
-        ctx.fill();
+        ctx.arc(0, 0, radius, 0, 2 * Math.PI);
+        ctx.strokeStyle = "#ad7b37";
         ctx.lineWidth = 2;
-        ctx.strokeStyle = "#999";
         ctx.stroke();
-  
+        ctx.beginPath();
+        ctx.arc(0, 0, radius * 0.17, 0, 2 * Math.PI);
+        ctx.fillStyle = "#0a0a0a";
+        ctx.fill();
+        ctx.strokeStyle = "#00d2ff";
+        ctx.stroke();
         ctx.restore();
       },
-  
-      // where the red tip is, for chip animation
+      // Tip at the top of the wheel
       getPointerTip() {
         const r = this.$refs.stage?.getBoundingClientRect?.();
-        return r ? { x: r.left + r.width / 2, y: r.top + 26 } : { x: 0, y: 0 };
+        return r ? { x: r.left + r.width / 2, y: r.top + 20 } : { x: 0, y: 0 };
       },
   
       async spinTo(labelOrIndex = null) {
@@ -139,7 +138,8 @@
   
         const start = this.rotation;
         const delta = targetRotation - start;
-        const dur   = this.durationMs;
+        const dur = matchMedia("(prefers-reduced-motion: reduce)").matches
+          ? 150 : this.durationMs;
         const t0    = performance.now();
   
         return new Promise(resolve => {
@@ -158,24 +158,17 @@
   };
   </script>
   
-  <style scoped>
-  .wheel-wrap { display:flex; flex-direction:column; align-items:center; gap:12px; }
-  .wheel-stage { position:relative; transition: transform .18s ease; }
-  .wheel-stage:hover { transform: scale(1.012); cursor: pointer; }
-  .wheel-stage canvas { display:block; }
-  
-  /* POINTER at top — ▼ points DOWN */
-  .pointer{
-    position:absolute; left:50%; transform:translateX(-50%);
-    width:0; height:0; filter:drop-shadow(0 1px 1px rgba(0,0,0,.3));
-    transition: transform .18s ease;
-  }
-  .pointer.top{
-    top:-12px;
-    border-left:16px solid transparent;
-    border-right:16px solid transparent;
-    border-top:26px solid #e3342f; /* ▼ */
-  }
-  .wheel-stage:hover .pointer { transform: translateX(-50%) scale(1.05); }
-  </style>
-  
+<style scoped>
+.wheel-stage { position: relative; width: min(100%, var(--wheel-size), 22.5rem, 48svh); aspect-ratio: 1; margin-inline: auto; }
+.wheel-stage canvas { display: block; }
+.wheel-pointer {
+  position: absolute; left: 50%; top: 0; transform: translateX(-50%);
+  width: 1.25rem; height: .9rem; clip-path: polygon(0 0,100% 0,50% 100%);
+  background: #ffb000;
+}
+.wheel-hub {
+  position: absolute; inset: 50% auto auto 50%; transform: translate(-50%, -50%);
+  width: .75rem; height: .75rem; border: 1px solid #00d2ff; background: #12323b;
+  rotate: 45deg;
+}
+</style>
