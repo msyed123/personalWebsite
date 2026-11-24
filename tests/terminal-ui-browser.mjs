@@ -33,7 +33,10 @@ try {
   await page.goto(`http://127.0.0.1:${port}/`,{waitUntil:'domcontentloaded',timeout:50000})
   const input=page.getByRole('textbox',{name:'Terminal command'})
   const prompt = page.getByRole('form',{name:'Terminal'})
-  const idleOutline = await prompt.evaluate(el => getComputedStyle(el).outlineStyle)
+  const idleOutline = await prompt.evaluate(el => {
+    el.querySelector('input').blur()
+    return getComputedStyle(el).outlineStyle
+  })
   assert.equal(idleOutline, 'none', 'Unfocused terminal should not show a focus outline')
   const assertTerminalFocus = async () => {
     const style = await prompt.evaluate(el => {
