@@ -681,7 +681,7 @@ onUnmounted(() => {
 }
 
 .traffic-map-workspace {
-  grid-template-rows: minmax(clamp(240px, 58dvh, 540px), 1fr);
+  grid-template-rows: minmax(clamp(240px, 75dvh, 800px), 1fr);
 }
 
 .weather-map-workspace {
