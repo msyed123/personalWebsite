@@ -291,6 +291,7 @@ try{
        Math.abs(weatherLayout.controlsTop-weatherLayout.mapTop)>2
      : weatherLayout.controlsTop<weatherLayout.mapTop ||
        weatherLayout.controlsBottom>weatherLayout.mapBottom ||
+       (weatherLayout.controlsBottom-weatherLayout.controlsTop)>0.55*(weatherLayout.mapBottom-weatherLayout.mapTop) ||
        weatherLayout.controlsLeft<weatherLayout.mapLeft ||
        weatherLayout.controlsRight>weatherLayout.mapRight)) {
      throw Error('Weather controls should sit beside desktop map and inside mobile map: '+JSON.stringify(weatherLayout))

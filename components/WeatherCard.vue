@@ -746,7 +746,7 @@ onUnmounted(() => {
     left: .5rem;
     right: .5rem;
     bottom: .5rem;
-    max-height: calc(100% - 3.65rem);
+    max-height: min(54%, calc(100% - 3.65rem));
     overflow-y: auto;
     overscroll-behavior: contain;
   }
