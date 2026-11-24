@@ -23,16 +23,24 @@ globalThis.fetch = async (input, init) => {
     })
   }
   const newsItems = {
-    'https://feeds.npr.org/1001/rss.xml': ['A sample national headline', 'https://www.npr.org/example'],
+    'https://feeds.npr.org/1002/rss.xml': ['A sample national headline', 'https://www.npr.org/example'],
     'https://news.seattle.gov/feed/': ['A sample Seattle headline', 'https://news.seattle.gov/example/'],
     'https://www.nasa.gov/news-release/feed/': ['A sample NASA headline', 'https://www.nasa.gov/example/'],
     'https://www.universetoday.com/rss.xml': ['A sample independent space headline', 'https://www.universetoday.com/articles/example']
   }
   if (Object.hasOwn(newsItems, url)) {
     const [title, link] = newsItems[url]
-    const xml = '<rss><channel><item><title>' + title + '</title><link>' + link +
-      '</link><pubDate>Tue, 24 Nov 2026 20:00:00 GMT</pubDate></item></channel></rss>'
+    const nasaPhoto = url.includes('nasa.gov') ? '<content:encoded><![CDATA[' +
+      '<div class="hds-media-wrapper"><figure><img src="https://www.nasa.gov/wp-content/uploads/example.jpg" alt="Example satellite"></figure>' +
+      '<figcaption><div class="hds-credits">Credit: NASA</div></figcaption></div>]]></content:encoded>' : ''
+    const xml = '<rss xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><item><title>' +
+      title + '</title><link>' + link + '</link><description>A short publisher preview.</description>' +
+      '<pubDate>Tue, 24 Nov 2026 20:00:00 GMT</pubDate>' + nasaPhoto + '</item></channel></rss>'
     return new Response(xml, { headers: { 'Content-Type': 'application/rss+xml' } })
+  }
+  // Make browser smoke runs independent of unrelated editorial services.
+  if (/prismic\.io|letterboxd\.com|substack\.com/.test(url)) {
+    return new Response('{}', { status: 503, headers: { 'Content-Type': 'application/json' } })
   }
   return nativeFetch(input, init)
 }

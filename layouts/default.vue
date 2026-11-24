@@ -1,6 +1,6 @@
 <template>
   <div class="flex-1 w-full flex flex-col font-mono text-terminal-amber bg-terminal-black">
-    <header :inert="Boolean(weatherData)" class="border-b border-terminal-amber-dim pb-4 mb-6 w-full flex flex-col md:flex-row justify-between items-start md:items-end gap-6 p-6">
+    <header :inert="workspaceOpen" class="border-b border-terminal-amber-dim pb-4 mb-6 w-full flex flex-col md:flex-row justify-between items-start md:items-end gap-6 p-6">
       <div class="space-y-1">
         <h1 class="text-2xl md:text-3xl font-mono tracking-wider font-bold uppercase text-terminal-amber">
           <NuxtLink to="/" class="hover:text-terminal-blue transition-colors duration-300">mamoon_syed<span class="animate-blink text-terminal-blue">_</span></NuxtLink>
@@ -22,14 +22,18 @@
     </header>
 
     <!-- Main Content -->
-    <main :inert="Boolean(weatherData)" :class="['flex-grow w-full mx-auto p-4 lg:p-0', route.path === '/draft' ? 'max-w-[2000px] px-8' : 'max-w-5xl']">
+    <main :inert="workspaceOpen" :class="['flex-grow w-full mx-auto p-4 lg:p-0', route.path === '/draft' ? 'max-w-[2000px] px-8' : 'max-w-5xl']">
       <slot />
     </main>
 
-    <div class="terminal-workspace" :class="{ 'terminal-workspace-map': weatherData }"
-      :style="weatherData ? visualViewportStyle : undefined" @keydown.esc="dismissMap">
+    <div ref="workspace" class="terminal-workspace" :class="{ 'terminal-workspace-open': workspaceOpen }"
+      :style="workspaceOpen ? visualViewportStyle : undefined"
+      :role="activeNewsTopic ? 'dialog' : undefined" :aria-modal="activeNewsTopic ? true : undefined"
+      :aria-label="activeNewsTopic ? 'News' : undefined" @keydown="onWorkspaceKeydown">
       <WeatherCard v-if="weatherData" :key="activeMapKey"
-        :weatherData="weatherData" :mode="activeCardMode" @close="dismissMap" />
+        :weatherData="weatherData" :mode="activeCardMode" @close="dismissWorkspace" />
+      <NewsReader v-else-if="activeNewsTopic" :key="activeNewsKey" ref="newsReader" class="border border-terminal-amber-dim bg-terminal-black"
+        overlay :topic="activeNewsTopic" @topic="activeNewsTopic = $event" @close="dismissWorkspace" />
       <footer class="sticky bottom-0 z-50 w-full backdrop-blur-md border-t border-terminal-amber-dim bg-terminal-black/95 opacity-95 px-4 py-4 flex flex-col gap-2 text-sm md:text-base">
         <!-- Spotify card output -->
         <div v-if="spotifyData && !spotifyData.error" class="w-full pb-2 mb-2 border-b border-terminal-amber-dim/20 flex justify-center">
@@ -73,9 +77,9 @@
 </template>
 
 <script setup lang="ts">
-import { nextTick, ref, watch, onMounted, onUnmounted } from 'vue'
+import { computed, nextTick, ref, watch, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { newsLocation } from '~/utils/newsTopics.js'
+import { defaultNewsTopic } from '~/utils/newsTopics.js'
 import { WMO_CODES } from '~/utils/weatherCodes'
 import {
   completeTerminalInput, createTerminalHistory, formatTerminalDirectory,
@@ -122,6 +126,11 @@ const activeGame = ref<string | null>(null)
 const weatherData = ref<any>(null)
 const activeCardMode = ref<'weather' | 'traffic'>('weather')
 const activeMapKey = ref(0)
+const activeNewsTopic = ref<string | null>(null)
+const activeNewsKey = ref(0)
+const newsReader = ref<{ closeStory: () => boolean, focusStart: () => void } | null>(null)
+const workspace = ref<HTMLElement | null>(null)
+const workspaceOpen = computed(() => Boolean(weatherData.value || activeNewsTopic.value))
 // Cancel superseded lookups so an old response cannot reopen a dismissed card.
 let terminalRunId = 0
 let lookupController: AbortController | null = null
@@ -189,6 +198,7 @@ function resetTerminal (keepMap = false) {
   spotifyLoading.value = false
   cmdOutput.value = ''
   activeGame.value = null
+  activeNewsTopic.value = null
   if (!keepMap) {
     weatherData.value = null
     activeCardMode.value = 'weather'
@@ -197,17 +207,43 @@ function resetTerminal (keepMap = false) {
 
 function clearScreen () { resetTerminal() }
 
-function dismissMap (event?: KeyboardEvent) {
-  if (!weatherData.value && !lookupController) return
+function dismissWorkspace (event?: KeyboardEvent) {
+  if (!workspaceOpen.value && !lookupController) return
   event?.preventDefault()
-  const restoreFocus = Boolean(weatherData.value) && desktopPointer()
+  const restoreFocus = workspaceOpen.value && desktopPointer()
   clearScreen()
   if (restoreFocus) nextTick(() => terminalInput.value?.focus({ preventScroll: true }))
 }
 
+function onWorkspaceKeydown(event: KeyboardEvent) {
+  if (event.defaultPrevented) return
+  if (event.key === 'Escape') {
+    if (newsReader.value?.closeStory()) {
+      event.preventDefault()
+      return
+    }
+    dismissWorkspace(event)
+    return
+  }
+  if (event.key !== 'Tab' || !activeNewsTopic.value || !workspace.value) return
+  // The command prompt stays inside the dialog so you can run a replacement.
+  const focusable = Array.from(workspace.value.querySelectorAll<HTMLElement>(
+    'a[href], button:not(:disabled), input:not(:disabled), [tabindex="0"]'
+  )).filter(el => !el.closest('[inert]') && el.getClientRects().length > 0)
+  const first = focusable[0]
+  const last = focusable.at(-1)
+  if (event.shiftKey && document.activeElement === first && last) {
+    event.preventDefault()
+    last.focus()
+  } else if (!event.shiftKey && document.activeElement === last && first) {
+    event.preventDefault()
+    first.focus()
+  }
+}
+
 watch(() => route.path, () => {
-  // Browser back/forward is another way to leave a map or an in-flight lookup.
-  if (weatherData.value || lookupController) clearScreen()
+  // Browser back/forward also leaves a modal or an in-flight map lookup.
+  if (workspaceOpen.value || lookupController) clearScreen()
 })
 
 onUnmounted(() => {
@@ -297,7 +333,10 @@ const handleCommand = () => {
   const { command } = parsed
 
   if (command === 'news') {
-    router.push(newsLocation(parsed.argument)).then(() => window.scrollTo(0, 0))
+    activeNewsKey.value = terminalRunId
+    activeNewsTopic.value = parsed.argument || defaultNewsTopic
+    // Touch submission already blurred the input; don't reopen the keyboard.
+    if (!desktopPointer()) nextTick(() => newsReader.value?.focusStart())
     return
   }
 
@@ -471,7 +510,7 @@ const handleCommand = () => {
 <style scoped>
 .terminal-workspace { display: contents; }
 
-.terminal-workspace-map {
+.terminal-workspace-open {
   position: fixed;
   z-index: 100;
   inset-inline: 0;
@@ -489,7 +528,7 @@ const handleCommand = () => {
   background: rgb(0 0 0 / 75%);
 }
 
-.terminal-workspace-map footer {
+.terminal-workspace-open footer {
   position: static;
   flex: none;
   opacity: 1;
@@ -502,8 +541,8 @@ const handleCommand = () => {
   outline-offset: 3px;
 }
 
-:global(html:has(.terminal-workspace-map)),
-:global(body:has(.terminal-workspace-map)) {
+:global(html:has(.terminal-workspace-open)),
+:global(body:has(.terminal-workspace-open)) {
   overflow: hidden;
   overscroll-behavior: none;
 }

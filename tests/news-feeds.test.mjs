@@ -72,3 +72,41 @@ test('Hacker News keeps community order, refuses bad IDs, and links discussions 
   assert.deepEqual(result.items.map(x => x.title), ['Story 2','Story 1'])
   assert.equal(result.items[0].url, 'https://news.ycombinator.com/item?id=2')
 })
+
+test('default headlines follow NPR’s curated homepage feed in editorial order', async () => {
+  const reader = createNewsReader({ request: async url => {
+    assert.equal(url, 'https://feeds.npr.org/1002/rss.xml')
+    return new Response(rss(
+      item('First editorial pick', 'https://www.npr.org/first', 'Tue, 24 Nov 2026 18:00:00 GMT'),
+      item('Second editorial pick', 'https://www.npr.org/second', date)
+    ))
+  } })
+  const { items } = await reader('headlines')
+  assert.deepEqual(items.map(x => x.title), ['First editorial pick','Second editorial pick'])
+})
+
+test('previews only use plain publisher excerpts and explicitly credited NASA media', () => {
+  const image = (host, credit) => `<div class="hds-media-wrapper">
+    <figure><img src="${host}" alt="A satellite in orbit" onerror="danger()"></figure>
+    <figcaption><div class="hds-credits">Credit: ${credit}</div></figcaption></div>`
+  const build = (markup, articleTitle = 'A launch') => `<item><title>${articleTitle}</title>
+    <link>https://www.nasa.gov/story</link><pubDate>${date}</pubDate>
+    <description><![CDATA[<p>News &amp; launch briefing</p><script>bad()</script>]]></description>
+    <content:encoded><![CDATA[${markup}]]></content:encoded></item>`
+  const xml = (...entries) => rss(...entries).replace('<rss ', '<rss xmlns:content="http://purl.org/rss/1.0/modules/content/" ')
+  const real = 'https://www.nasa.gov/wp-content/uploads/satellite.jpg?w=2048'
+  const [valid, partner, external, ambiguous] = readRssHeadlines(xml(
+    build(image(real, 'NASA')), build(image(real, 'NASA/ESA')),
+    build(image('https://www.nasa.gov.example.com/lookalike.jpg', 'NASA')),
+    build('<figure><img src="' + real + '"></figure><p>Credit: NASA</p>')
+  ), 'NASA')
+  assert.equal(valid.summary, 'News & launch briefing')
+  assert.deepEqual(valid.image, { url: real.replace('2048', '900'), alt: 'A satellite in orbit', credit: 'NASA' })
+  assert.equal(partner.image, undefined)
+  assert.equal(external.image, undefined)
+  assert.equal(ambiguous.image, undefined)
+  const [npr] = readRssHeadlines(xml(build(image(real, 'NASA'))), 'NPR')
+  assert.equal(npr.summary, 'News & launch briefing')
+  assert.equal(npr.image, undefined)
+  assert.equal(readRssHeadlines(xml(build('')), 'City of Seattle')[0].summary, undefined)
+})
