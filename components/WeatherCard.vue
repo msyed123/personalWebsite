@@ -222,6 +222,7 @@ const asciiArt = computed(() => {
 
 defineEmits(['close'])
 let resizeObserver
+let cancelBridgeResize
 
 const mapContainer = ref(null)
 const mapInstance = shallowRef(null)
@@ -359,6 +360,35 @@ function zoomOut() {
   if (mapInstance.value) mapInstance.value.zoomOut();
 }
 
+function guardBridgeTransitions(layer, L) {
+  // The Leaflet–MapLibre bridge's transition callback reads its map on the
+  // next animation frame even after removal. Cancelling/safeguarding the
+  // frame matters when the next command replaces a map during a resize.
+  let pendingFrame = null
+  const cancel = () => {
+    if (pendingFrame !== null) L.Util.cancelAnimFrame(pendingFrame)
+    pendingFrame = null
+  }
+  layer._transitionEnd = function () {
+    cancel()
+    pendingFrame = L.Util.requestAnimFrame(() => {
+      pendingFrame = null
+      const map = this._map
+      const gl = this.getMaplibreMap()
+      if (!map || !gl) return
+      const center = map.getCenter()
+      const offset = map.latLngToContainerPoint(map.getBounds().getNorthWest())
+      this._resizeContainer()
+      L.DomUtil.setTransform(gl._actualCanvas, offset, 1)
+      gl.once('moveend', () => {
+        if (this._map === map && this.getMaplibreMap() === gl) this._zoomEnd()
+      })
+      gl.jumpTo({ center, zoom: map.getZoom() - 1 })
+    })
+  }
+  return cancel
+}
+
 onMounted(async () => {
   // Dynamically import Leaflet so it doesn't break Nuxt 3 SSR
   const L = (await import('leaflet')).default;
@@ -396,7 +426,7 @@ onMounted(async () => {
 
   // MapLibre owns the whole vector/raster stack. A separate Leaflet radar pane
   // would otherwise cover road text and traffic regardless of its alpha value.
-    const baseMap = maplibreGL({
+  const baseMap = maplibreGL({
     style: 'https://tiles.openfreemap.org/styles/dark',
     interactive: false,
     attributionControl: false,
@@ -404,7 +434,9 @@ onMounted(async () => {
     // mode does not pan, so keep its WebGL surface within the map viewport.
     // Preserve the buffer for the draggable, traffic-only map.
     padding: trafficOnly.value ? 0.1 : 0
-  }).addTo(mapInstance.value);
+  })
+  cancelBridgeResize = guardBridgeTransitions(baseMap, L)
+  baseMap.addTo(mapInstance.value)
 
   // The WebGL map has its own label fonts: CSS font-family alone cannot change them.
   // MapLibre 6 supports local glyphs when the remote glyph URL is unset. The same
@@ -558,6 +590,7 @@ onMounted(async () => {
 onUnmounted(() => {
   weatherMapDisposed = true;
   resizeObserver?.disconnect();
+  cancelBridgeResize?.();
   layerRequest?.abort();
   stopAnimation();
   radarLoading.value = false;

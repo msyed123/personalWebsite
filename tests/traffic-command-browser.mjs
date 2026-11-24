@@ -413,6 +413,16 @@ try{
      if(landscape.mapHeight<220||!landscape.canScroll||!landscape.closeStillVisible) {
        throw Error('Short landscape modal must retain map space, scrolling and Close: '+JSON.stringify(landscape))
      }
+     // A shorter portrait visual viewport simulates the phone keyboard
+     // reserving space; the same input must still be reachable below the map.
+     await page.setViewportSize({width,height:460})
+     await page.waitForFunction(()=>{
+       const input=document.querySelector('footer input')
+       const rect=input.getBoundingClientRect()
+       const map=document.querySelector('[data-terminal-map-card]').getBoundingClientRect()
+       return rect.bottom<innerHeight && rect.top>map.bottom &&
+         document.elementFromPoint(rect.x+10,rect.y+rect.height/2)===input
+     },null,{timeout:10000})
      await page.setViewportSize({width,height})
    }
    await closeMap.click()
