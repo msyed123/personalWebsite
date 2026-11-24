@@ -1,15 +1,18 @@
 <template>
-  <div data-terminal-map-card class="font-mono text-sm border border-terminal-amber/30 p-3 sm:p-4 w-full min-w-0 bg-terminal-black shadow-lg relative flex flex-col gap-4 group">
-    <button @click="$emit('close')" class="absolute top-2 right-3 z-[999] text-terminal-amber bg-terminal-black/80 px-2 py-0 border border-terminal-amber-dim hover:text-red-500 hover:border-red-500 transition-colors cursor-pointer">[x]</button>
+  <dialog ref="dialog" data-terminal-map-card class="map-dialog font-mono text-sm border border-terminal-amber/30 p-3 sm:p-4 min-w-0 bg-terminal-black text-terminal-amber shadow-lg"
+    :aria-label="`${trafficOnly ? 'Traffic' : 'Weather'} map: ${weatherData.location}`"
+    @cancel.prevent="closeDialog">
+    <button ref="closeButton" type="button" autofocus aria-label="Close map" @click="closeDialog"
+      class="map-close text-terminal-amber bg-terminal-black border border-terminal-amber-dim hover:text-red-500 hover:border-red-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-terminal-blue">[x]</button>
 
     <!-- Weather Data Top Bar -->
-    <div v-if="!trafficOnly" class="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-2 items-end w-full pt-1 pr-8">
+    <div v-if="!trafficOnly" class="map-heading flex flex-wrap justify-between items-end gap-x-4 gap-y-1 w-full pt-1 pr-12">
       <div class="flex items-center gap-3 min-w-0">
         <!-- Keep the original ASCII art, but allow long location names to wrap. -->
-        <div class="flex-shrink-0 whitespace-pre leading-tight font-bold text-xs" :class="artColor">
+        <div class="hidden sm:block flex-shrink-0 whitespace-pre leading-tight font-bold text-xs" :class="artColor">
 {{ asciiArt }}
         </div>
-        <div class="min-w-0 flex-1 pt-2">
+        <div class="min-w-0 flex-1">
           <div class="text-xs uppercase tracking-widest text-terminal-amber-dim mb-1" :class="{'animate-pulse': isPlaying}">{{ weatherLayer === 'radar' ? 'LIVE RADAR SIGNAL' : 'MODEL PRECIPITATION FORECAST' }}</div>
           <div class="text-lg sm:text-xl font-bold text-terminal-blue leading-tight break-words">{{ weatherData.location }}</div>
         </div>
@@ -34,12 +37,11 @@
       </div>
     </div>
 
-    <div :class="trafficOnly ? 'min-w-0' : 'weather-map-workspace'">
+    <div class="map-workspace" :class="trafficOnly ? 'traffic-map-workspace' : 'weather-map-workspace'">
       <!-- Map Container -->
       <div
         ref="mapContainer"
         class="w-full border border-terminal-amber-dim/50 bg-terminal-black overflow-hidden map-crt-effect relative"
-        :class="trafficOnly ? 'h-80 sm:h-[26rem]' : 'h-72 sm:h-64'"
       >
         <!-- Explicit, keyboard-accessible traffic toggle. Radar is never affected. -->
         <div v-if="!trafficOnly" class="absolute top-2 right-2 z-[999] flex flex-col items-end gap-1">
@@ -172,7 +174,7 @@
       <span v-else>> Source: Road flow / highway sensors</span>
       <span><a href="https://openfreemap.org/" target="_blank" rel="noopener noreferrer" class="underline">OpenFreeMap</a> © OpenMapTiles / <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer" class="underline">OpenStreetMap</a><template v-if="trafficRoadsEnabled"> / Traffic © <a href="https://www.tomtom.com/" target="_blank" rel="noopener noreferrer" class="underline">TomTom</a></template><template v-if="trafficStationsEnabled"> / <a href="https://wsdot.wa.gov/traffic/api/" target="_blank" rel="noopener noreferrer" class="underline">WSDOT</a></template></span>
     </div>
-  </div>
+  </dialog>
 </template>
 
 <script setup>
@@ -195,7 +197,6 @@ const props = defineProps({
   }
 })
 
-defineEmits(['close'])
 const trafficOnly = computed(() => props.mode === 'traffic')
 
 const artColor = computed(() => {
@@ -217,6 +218,16 @@ const asciiArt = computed(() => {
   if (code >= 95) return `\n  .--.   \n .-(  ). \n(___.__)_)\n  ⚡ ⚡   `;
   return `\n _-_ _-_ \n  _-_ -_ \n _-_ _-_ \n         `;
 });
+
+const emit = defineEmits(['close'])
+const dialog = ref(null)
+const closeButton = ref(null)
+let resizeObserver
+
+function closeDialog() {
+  dialog.value?.close()
+  emit('close')
+}
 
 const mapContainer = ref(null)
 const mapInstance = shallowRef(null)
@@ -355,6 +366,14 @@ function zoomOut() {
 }
 
 onMounted(async () => {
+  // A touch user just used the terminal keyboard. Dismiss it rather than
+  // restoring an editable control that can cover the map again on close.
+  if (navigator.maxTouchPoints > 0 && document.activeElement instanceof HTMLInputElement) {
+    document.activeElement.blur()
+  }
+  dialog.value.showModal()
+  closeButton.value?.focus({ preventScroll: true })
+
   // Dynamically import Leaflet so it doesn't break Nuxt 3 SSR
   const L = (await import('leaflet')).default;
   const { maplibreGL } = await import('@maplibre/maplibre-gl-leaflet');
@@ -382,6 +401,12 @@ onMounted(async () => {
     minZoom: 4,
     maxZoom: 13
   }).setView([lat, lon], trafficOnly.value ? 12 : 11);
+
+  // Leaflet listens for window resizes, but sidebar and timeline sizes can
+  // also change while the viewport stays the same.
+  resizeObserver = new ResizeObserver(() =>
+    mapInstance.value?.invalidateSize({ animate: false, debounceMoveend: true }))
+  resizeObserver.observe(mapContainer.value)
 
   // MapLibre owns the whole vector/raster stack. A separate Leaflet radar pane
   // would otherwise cover road text and traffic regardless of its alpha value.
@@ -546,6 +571,7 @@ onMounted(async () => {
 
 onUnmounted(() => {
   weatherMapDisposed = true;
+  resizeObserver?.disconnect();
   layerRequest?.abort();
   stopAnimation();
   radarLoading.value = false;
@@ -598,17 +624,76 @@ onUnmounted(() => {
   outline: 2px solid #00d2ff;
 }
 
-.weather-map-workspace {
+:global(html:has(.map-dialog[open])),
+:global(body:has(.map-dialog[open])) {
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+.map-dialog {
+  --map-margin: clamp(8px, 1.35vmin, 16px);
+  position: fixed;
+  inset-block-start: max(var(--map-margin), env(safe-area-inset-top));
+  inset-block-end: max(var(--map-margin), env(safe-area-inset-bottom));
+  inset-inline-start: max(var(--map-margin), env(safe-area-inset-left));
+  inset-inline-end: max(var(--map-margin), env(safe-area-inset-right));
+  margin: 0;
+  inline-size: auto;
+  block-size: auto;
+  max-inline-size: none;
+  max-block-size: none;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.map-dialog[open] {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.map-dialog > :not(.map-workspace) {
+  flex-shrink: 0;
+}
+
+.map-dialog::backdrop {
+  background: rgb(0 0 0 / 75%);
+}
+
+.map-close {
+  position: sticky;
+  top: 0;
+  align-self: flex-end;
+  margin-bottom: -3rem;
+  width: 2.75rem;
+  height: 2.75rem;
+  z-index: 1001;
+}
+
+.map-workspace {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 1rem;
+  gap: 0.65rem;
+  flex: 1 0 auto;
   min-width: 0;
+}
+
+.traffic-map-workspace {
+  grid-template-rows: minmax(clamp(240px, 58dvh, 540px), 1fr);
+}
+
+.weather-map-workspace {
+  grid-template-rows: minmax(clamp(230px, 43dvh, 380px), 1fr) auto;
 }
 
 @media (min-width: 1024px) {
   .weather-map-workspace {
     grid-template-columns: minmax(0, 1fr) clamp(17rem, 23vw, 21rem);
-    align-items: start;
+    grid-template-rows: minmax(290px, 1fr);
+  }
+
+  .weather-map-workspace .radar-timeline {
+    align-self: start;
   }
 }
 

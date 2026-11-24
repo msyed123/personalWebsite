@@ -170,21 +170,33 @@ try{
    await page.waitForFunction(()=>document.body.innerText.includes('TOMTOM ROADS: LIVE')&&document.body.innerText.includes('WSDOT SENSORS: LIVE'),{timeout:30000})
    await page.waitForTimeout(1500)
    const card=page.locator('[data-terminal-map-card]')
-   const assertFullWidth = async mode => {
+   const assertModalGeometry = async mode => {
      const layout = await card.evaluate(el => {
        const box = el.getBoundingClientRect()
+       const map = el.querySelector('.map-crt-effect').getBoundingClientRect()
        const viewport = document.documentElement.clientWidth
        return { left: box.left, right: viewport-box.right,
+         top: box.top, bottom: innerHeight-box.bottom, mapRatio:map.height/innerHeight,
+         modal: el.matches(':modal'),
+         scrollLocked: getComputedStyle(document.documentElement).overflowY==='hidden',
          overflow: document.documentElement.scrollWidth-viewport,
          contentOverflow: el.scrollWidth-el.clientWidth }
      })
-     const gutter = name==='mobile' ? 8 : 24
-     if(Math.abs(layout.left-gutter)>2 || Math.abs(layout.right-gutter)>2 ||
+     if(!layout.modal || !layout.scrollLocked ||
+        [layout.top,layout.bottom,layout.left,layout.right].some(gap=>gap<7||gap>18) ||
+        layout.mapRatio < (mode==='traffic' ? 0.72 : 0.52) ||
         layout.overflow>2 || layout.contentOverflow>2) {
-       throw Error(mode+' card should fill the viewport inside its expected gutters: '+JSON.stringify(layout))
+       throw Error(mode+' map should take up most of a padded, scroll-locked modal: '+JSON.stringify(layout))
      }
    }
-   await assertFullWidth('traffic')
+   await assertModalGeometry('traffic')
+   const closeMap=page.getByRole('button',{name:'Close map'})
+   if(!await closeMap.evaluate(el=>document.activeElement===el)) throw Error('Close must receive modal focus')
+   if(await page.getByRole('navigation').count()) throw Error('Background navigation stayed accessible')
+   for(let i=0;i<8;i++) {
+     await page.keyboard.press('Tab')
+     if(await input.evaluate(el=>document.activeElement===el)) throw Error('Focus escaped to the terminal')
+   }
    if(await card.getByRole('group',{name:'Radar timeline'}).count()) {
      throw Error('Dedicated traffic mode must not contain a weather sidebar')
    }
@@ -202,11 +214,19 @@ try{
    await page.getByRole('button',{name:'Turn traffic overlay on'}).waitFor({timeout:5000})
    await card.screenshot({path:`preview-output/traffic-card-${name}-off.png`})
    if(!info.text.includes('TOMTOM ROADS: LIVE'))throw Error('No per-provider health')
-   // Existing weather command still changes modes and obtains weather.
+   await page.keyboard.press('Escape')
+   await card.waitFor({state:'detached'})
+   if(name==='desktop' && !await input.evaluate(el=>document.activeElement===el)) {
+     throw Error('Dismissing the modal should return desktop focus to the terminal')
+   }
+   if(await page.evaluate(()=>getComputedStyle(document.documentElement).overflowY==='hidden')) {
+     throw Error('Closing the modal should restore background scrolling')
+   }
+   // Existing weather command still opens independently.
    await input.fill('weather Seattle')
    await input.press('Enter')
    await page.getByText('LIVE RADAR SIGNAL').waitFor({timeout:30000})
-   await assertFullWidth('weather')
+   await assertModalGeometry('weather')
    if(await page.getByText('LIVE TRAFFIC SIGNAL').count())throw Error('Traffic-only header survived weather switch')
    const timeline=page.getByRole('group',{name:'Radar timeline'})
    await timeline.waitFor({timeout:15000})
@@ -218,9 +238,9 @@ try{
        controlsRight:controls.right,timelines:el.querySelectorAll('[aria-label="Radar timeline"]').length}
    })
    if(weatherLayout.timelines!==1 || (name==='desktop'
-     ? weatherLayout.controlsLeft<weatherLayout.mapRight+12 ||
+     ? weatherLayout.controlsLeft<weatherLayout.mapRight+8 ||
        Math.abs(weatherLayout.controlsTop-weatherLayout.mapTop)>2
-     : weatherLayout.controlsTop<weatherLayout.mapBottom+12 ||
+     : weatherLayout.controlsTop<weatherLayout.mapBottom+8 ||
        Math.abs(weatherLayout.controlsLeft-weatherLayout.mapLeft)>2 ||
        Math.abs(weatherLayout.controlsRight-weatherLayout.mapRight)>2)) {
      throw Error('Weather timeline should sit beside desktop map and below mobile map: '+JSON.stringify(weatherLayout))
@@ -359,6 +379,17 @@ try{
    if(!forecastRequests || await page.getByRole('group',{name:'Radar timeline'}).count()) {
      throw Error('The precipitation forecast did not replace the radar')
    }
+   if(name==='mobile') {
+     await page.setViewportSize({width:844,height:390})
+     await page.waitForFunction(()=>{
+       const map=document.querySelector('.map-crt-effect')?.getBoundingClientRect()
+       const gl=document.querySelector('.leaflet-gl-layer')?.getBoundingClientRect()
+       return map?.width>710 && gl && Math.abs(map.width-gl.width)<4
+     },null,{timeout:10000})
+     await page.setViewportSize({width,height})
+   }
+   await closeMap.click()
+   await card.waitFor({state:'detached'})
    // A revoked Spotify refresh token used to silently clear the terminal.
    // Regress the visible owner-reauthorization message in both viewport sizes.
    await page.route('**/api/spotify',route=>route.fulfill({

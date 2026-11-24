@@ -38,6 +38,8 @@ try {
   assert.ok((await page.locator('body').innerText()).includes('Seattle, Washington'))
   assert.ok((await page.locator('body').innerText()).includes('43°'))
   assert.equal(external.length,0,'Forecast/geocode bypassed same-origin proxy')
+  await page.getByRole('dialog',{name:/Weather map/}).getByRole('button',{name:'Close map'}).click()
+  await page.getByRole('dialog',{name:/Weather map/}).waitFor({state:'detached'})
   await input.fill('traffic Seattle')
   await input.press('Enter')
   await page.getByText('LIVE TRAFFIC SIGNAL').waitFor({timeout:20000})
