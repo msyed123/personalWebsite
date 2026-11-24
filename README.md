@@ -178,3 +178,18 @@ Official docs:
 [Spotify redirect rules](https://developer.spotify.com/documentation/web-api/concepts/redirect_uri),
 [Upstash Redis REST API](https://upstash.com/docs/redis/features/restapi),
 [Heroku dyno filesystem](https://devcenter.heroku.com/articles/dyno-isolation).
+
+## Terminal news
+
+Type `news` for headlines, `news --topic space` to open a topic, or
+`news --topics` to list them. The same views are linkable from `/news`
+(e.g. `/news?topic=space`). The first feeds are NPR (headlines), City of
+Seattle (government updates), Universe Today and NASA (space), and the
+official Hacker News API (community rankings, not a newsroom).
+
+To add sources, extend the fixed registry in `server/utils/newsFeeds.js`;
+only add a topic to `utils/newsTopics.js` if it needs its own command option.
+Check publisher reuse terms and test the real feed before adding it.
+The page displays attributed titles, publication dates and original links only.
+The server coalesces requests, keeps a short in-memory cache, and never
+returns raw feed markup; a failed source is labeled while others keep working.
