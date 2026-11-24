@@ -12,7 +12,8 @@ export const radarBlendWeights = (fraction, opacity) => {
 }
 
 export function createAsciiRadarLayer({
-  gl, addProtocol, removeProtocol, transitionMs = 720
+  gl, addProtocol, removeProtocol, transitionMs = 720,
+  providerTile, providerMaxZoom = 7, pixelMark, keepProviderColors = false
 }) {
   const scheme = 'ascii-rain-' + (++nextProtocolId)
   // Two independently buffered raster sources permit a real crossfade between
@@ -69,13 +70,14 @@ export function createAsciiRadarLayer({
     try {
       const key = frame + '/' + z + '/' + x + '/' + y
       const canvas = await renderedTileCache.load(key, async () => {
-        const diff = Math.max(0, z - 7)
+        const diff = Math.max(0, z - providerMaxZoom)
         const scale = 2 ** diff
-        const fetchZ = Math.min(z, 7)
+        const fetchZ = Math.min(z, providerMaxZoom)
         const fetchX = Math.floor(x / scale)
         const fetchY = Math.floor(y / scale)
-        const url = 'https://tilecache.rainviewer.com' + paths[frame] +
-          '/256/' + fetchZ + '/' + fetchX + '/' + fetchY + '/6/1_1.png'
+        const url = providerTile?.(paths[frame], fetchZ, fetchX, fetchY) ??
+          'https://tilecache.rainviewer.com' + paths[frame] +
+          '/256/' + fetchZ + '/' + fetchX + '/' + fetchY + '/2/1_1.png'
 
         const sourceCanvas = await sourceTileCache.load(url, async () => {
           // Cache the decoded provider tile, not just the HTTP response. At
@@ -110,6 +112,10 @@ export function createAsciiRadarLayer({
         } else {
           off.drawImage(sourceCanvas, 0, 0, 256, 256)
         }
+        if (keepProviderColors) {
+          ctx.drawImage(scaled, 0, 0)
+          return output
+        }
         const pixels = off.getImageData(0, 0, 256, 256).data
         ctx.font = 'bold 6px monospace'
         ctx.textAlign = 'center'
@@ -118,6 +124,14 @@ export function createAsciiRadarLayer({
           for (let col = 0; col < 256; col += 3) {
             const i = (row * 256 + col) * 4
             const r = pixels[i], g = pixels[i + 1], b = pixels[i + 2]
+            if (pixelMark) {
+              const mark = pixelMark(r, g, b, pixels[i + 3])
+              if (mark) {
+                ctx.fillStyle = mark[1]
+                ctx.fillText(mark[0], col + 1.5, row + 1.5)
+              }
+              continue
+            }
             if (pixels[i + 3] <= 15) continue
             const top = Math.max(r, g, b), low = Math.min(r, g, b)
             const saturation = top === 0 ? 0 : (top - low) / top
@@ -272,7 +286,9 @@ export function createAsciiRadarLayer({
 
   function initialize(radarPaths, initialOpacity = 0.7) {
     if (initialized || !radarPaths?.length) return false
-    paths.push(...radarPaths.filter(path => typeof path === 'string' && path.startsWith('/')))
+    paths.push(...radarPaths.filter(path => providerTile
+      ? path != null
+      : typeof path === 'string' && path.startsWith('/')))
     if (!paths.length) return false
     opacity = initialOpacity
     disposed = false

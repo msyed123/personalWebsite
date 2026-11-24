@@ -79,6 +79,37 @@ try{
        {path:'/v2/radar/test-3',time:1763871900}
      ]}})
    }))
+   // Exercise the labeled fallback independently of the live IEM service.
+   await page.route('https://mesonet.agron.iastate.edu/archive/data/**',route=>
+     route.fulfill({status:404}))
+   const forecastEpoch=Math.ceil(Date.now()/3600000)*3600000
+   const iso=ms=>new Date(ms).toISOString().replace('.000Z','Z')
+   const forecastTimes=[1,2,3].map(h=>iso(forecastEpoch+h*3600000))
+   const forecastRun=iso(forecastEpoch-12*3600000)
+   let forecastRequests=0, forecastCapabilities=0, releaseSlowForecast
+   const slowForecast=new Promise(resolve=>{releaseSlowForecast=resolve})
+   const forecastMetadata=`<Layer><Name>GDPS_15km_Precip-Accum1h</Name>
+     <Dimension name="time">${forecastTimes.join(',')}</Dimension>
+     <Dimension name="reference_time" default="${forecastRun}"></Dimension>
+     </Layer>`
+   await page.route('https://geo.weather.gc.ca/geomet?**',async route=>{
+     const params=new URL(route.request().url()).searchParams
+     if(params.get('REQUEST')==='GetCapabilities') {
+       if(++forecastCapabilities===1) await slowForecast
+       await route.fulfill({status:200,contentType:'text/xml',body:forecastMetadata}).catch(()=>{})
+       return
+     }
+     if(params.get('LAYERS')!=='GDPS_15km_Precip-Accum1h' ||
+        params.get('CRS')!=='EPSG:3857' ||
+        params.get('DIM_REFERENCE_TIME')!==forecastRun ||
+        !forecastTimes.includes(params.get('TIME'))) {
+       errors.push('Unexpected forecast GetMap parameters: '+params.toString())
+       await route.abort()
+       return
+     }
+     forecastRequests++
+     await route.fulfill({status:200,contentType:'image/png',body:stormTile})
+   })
    await page.route('https://tilecache.rainviewer.com/**',route=>{
      const url=route.request().url()
      sourceTileRequests.set(url,(sourceTileRequests.get(url)||0)+1)
@@ -154,6 +185,9 @@ try{
      }
    }
    await assertFullWidth('traffic')
+   if(await card.getByRole('group',{name:'Radar timeline'}).count()) {
+     throw Error('Dedicated traffic mode must not contain a weather sidebar')
+   }
    const info=await card.evaluate(el=>({
      text:el.innerText.slice(0,600),
      width:Math.round(el.getBoundingClientRect().width),
@@ -176,6 +210,21 @@ try{
    if(await page.getByText('LIVE TRAFFIC SIGNAL').count())throw Error('Traffic-only header survived weather switch')
    const timeline=page.getByRole('group',{name:'Radar timeline'})
    await timeline.waitFor({timeout:15000})
+   const weatherLayout=await card.evaluate(el=>{
+     const map=el.querySelector('.map-crt-effect').getBoundingClientRect()
+     const controls=el.querySelector('[aria-label="Radar timeline"]').getBoundingClientRect()
+     return {mapTop:map.top,mapRight:map.right,mapBottom:map.bottom,
+       mapLeft:map.left,controlsTop:controls.top,controlsLeft:controls.left,
+       controlsRight:controls.right,timelines:el.querySelectorAll('[aria-label="Radar timeline"]').length}
+   })
+   if(weatherLayout.timelines!==1 || (name==='desktop'
+     ? weatherLayout.controlsLeft<weatherLayout.mapRight+12 ||
+       Math.abs(weatherLayout.controlsTop-weatherLayout.mapTop)>2
+     : weatherLayout.controlsTop<weatherLayout.mapBottom+12 ||
+       Math.abs(weatherLayout.controlsLeft-weatherLayout.mapLeft)>2 ||
+       Math.abs(weatherLayout.controlsRight-weatherLayout.mapRight)>2)) {
+     throw Error('Weather timeline should sit beside desktop map and below mobile map: '+JSON.stringify(weatherLayout))
+   }
    const slider=page.getByRole('slider',{name:'Scrub radar timeline'})
    await page.waitForFunction(() => {
      const input=document.querySelector('input[aria-label="Scrub radar timeline"]')
@@ -284,6 +333,32 @@ try{
      sliderMax:await slider.getAttribute('max'),sliderValue:await slider.inputValue(),
      firstPassCDNRequests:loadedOnce,secondPassCDNRequests:afterSecondLoop,
      timelineLayout:afterLoopLayout,...info,pageErrors:errors})
+   const layerButtons=page.getByRole('group',{name:'Weather map layer'})
+   await page.getByText('RainViewer radar fallback (not MRMS)',{exact:false}).waitFor()
+   await Promise.all([
+     page.waitForRequest(req=>req.url().includes('geo.weather.gc.ca') &&
+       new URL(req.url()).searchParams.get('REQUEST')==='GetCapabilities',{timeout:10000}),
+     layerButtons.getByRole('button',{name:'Precipitation',exact:true}).click({timeout:5000})
+   ])
+   await page.getByText('LOADING PRECIPITATION',{exact:true}).waitFor()
+   // Supersede the metadata request before it resolves; it must not create
+   // any forecast tile source or turn Radar's busy state off prematurely.
+   await layerButtons.getByRole('button',{name:'Radar',exact:true}).click()
+   releaseSlowForecast()
+   await page.getByText('RainViewer radar fallback (not MRMS)',{exact:false}).waitFor()
+   if(forecastRequests!==0 || await page.getByRole('group',{name:'Precipitation timeline'}).count()) {
+     throw Error('A stale forecast replaced the radar after switching')
+   }
+   await Promise.all([
+     page.waitForResponse(res=>res.url().includes('geo.weather.gc.ca') &&
+       new URL(res.url()).searchParams.get('REQUEST')==='GetMap',{timeout:20000}),
+     layerButtons.getByRole('button',{name:'Precipitation',exact:true}).click({timeout:5000})
+   ])
+   await page.getByText('Millimetres accumulated in the preceding hour.',{exact:false}).waitFor()
+   await page.getByRole('slider',{name:'Scrub precipitation timeline'}).waitFor()
+   if(!forecastRequests || await page.getByRole('group',{name:'Radar timeline'}).count()) {
+     throw Error('The precipitation forecast did not replace the radar')
+   }
    // A revoked Spotify refresh token used to silently clear the terminal.
    // Regress the visible owner-reauthorization message in both viewport sizes.
    await page.route('**/api/spotify',route=>route.fulfill({

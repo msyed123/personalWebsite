@@ -23,7 +23,12 @@ For detailed explanation on how things work, checkout [Nuxt.js docs](https://nux
 
 ## Weather radar and provider-independent traffic
 
-The weather terminal uses **OpenFreeMap Dark** (MapLibre through Leaflet) plus the existing ASCII-like **RainViewer** radar. The basemap and radar require no traffic credentials.
+The weather terminal uses **OpenFreeMap Dark** (MapLibre through Leaflet) and provides two independently selected weather overlays. Neither needs traffic credentials.
+
+- **Radar**: observed NOAA MRMS SeamlessHSR via the [Iowa State IEM tile service](https://mesonet.agron.iastate.edu/ogc/) when the selected location falls in the national raster's extent and the dated archive responds. It matches unique colors against the [published 0.5 dBZ palette](https://mesonet.agron.iastate.edu/GIS/rasters.php?rid=4) and renders the same Universal Blue rain palette in ASCII bands. The source cannot distinguish values below 11 dBZ in its colored tiles. Transparent, ambiguous, and missing pixels are not converted to zero. RainViewer is explicitly identified when used as the fallback. Source processing, coverage, or timings are not guaranteed to match any third-party map.
+- **Precipitation**: [ECCC GeoMet](https://eccc-msc.github.io/open-data/msc-geomet/wms_en/) GDPS 15 km model forecast, separate from observations. Each frame is millimetres accumulated in the hour ending at the timestamp. The forecast uses the provider's published color scale, not the radar dBZ legend.
+
+Both overlays use bounded tile caches and use distinct frame times. Switching clears the old overlay and cancels its metadata load; it does not blend forecast and observations. At desktop widths the timeline and layer control sit beside the map; on phones they remain below.
 
 The traffic renderer consumes one normalized GeoJSON feature contract from `shared/traffic.js` and never parses provider-specific formats:
 
@@ -158,5 +163,3 @@ Official docs:
 [Spotify redirect rules](https://developer.spotify.com/documentation/web-api/concepts/redirect_uri),
 [Upstash Redis REST API](https://upstash.com/docs/redis/features/restapi),
 [Heroku dyno filesystem](https://devcenter.heroku.com/articles/dyno-isolation).
-
-
