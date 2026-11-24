@@ -495,6 +495,22 @@ try{
    await card.waitFor({state:'detached'})
    await page.goBack()
    await page.waitForURL(`http://127.0.0.1:${port}/`)
+   const output=page.locator('footer [role="status"]')
+   for(const helpCommand of ['spotify —help','nowplaying --help','man spotify']) {
+     await command(helpCommand)
+     await output.filter({hasText:'nowplaying, spotify'}).waitFor()
+     if(!(await output.innerText()).includes('--connect')) throw Error('Spotify manual omitted sign-in flag')
+   }
+   await command('ls -a')
+   if(!(await output.innerText()).startsWith('.  ..')) throw Error('ls -a omitted dot entries')
+   await command('ls -al')
+   if(!/^total /.test(await output.innerText()) || !(await output.innerText()).includes('  ..')) throw Error('ls -al omitted dot entries')
+   await command('ls -z')
+   await output.filter({hasText:'Try ls --help.'}).waitFor()
+   await command('whoami')
+   await page.getByText('user',{exact:true}).waitFor()
+   await command('echo Hello Seattle')
+   await page.getByText('Hello Seattle',{exact:true}).waitFor()
    // A revoked Spotify refresh token used to silently clear the terminal.
    // Regress the visible owner-reauthorization message in both viewport sizes.
    await page.route('**/api/spotify',route=>route.fulfill({
@@ -502,15 +518,19 @@ try{
      body:JSON.stringify({code:'REAUTHORIZE',
        error:'Spotify authorization expired. Site owner: run spotify connect to reconnect.'})
    }))
-   await input.fill('nowplaying')
-   await input.press('Enter')
-   await page.getByText('[SPOTIFY] Spotify authorization expired. Site owner: run spotify --connect to reconnect.').waitFor({timeout:5000})
+   for(const playback of ['nowplaying','spotify']) {
+     await Promise.all([
+       page.waitForRequest(req=>new URL(req.url()).pathname==='/api/spotify',{timeout:6000}),
+       command(playback)
+     ])
+     await page.getByText('[SPOTIFY] Spotify authorization expired. Site owner: run spotify --connect to reconnect.').waitFor({timeout:5000})
+   }
    if(await page.locator('.spotify-card').count()) {
      throw Error('Nowplaying rendered stale Spotify card after auth expiry')
    }
    // The owner-only renewal UI is reachable from the actual terminal,
    // without placing credentials in a URL or exposing any token on the page.
-   for(const command of ['spotify --connect','spotify —connect','spotify connect']){
+   for(const command of ['spotify --connect','spotify —connect','spotify connect','nowplaying --connect','nowplaying —connect']){
      // Each spelling starts at the terminal in its own browser context. The
      // connect page intentionally does not need a terminal or prior history.
      const aliasPage=await browser.newPage(viewportOptions)

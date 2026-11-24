@@ -74,6 +74,7 @@
 import { nextTick, ref, watch, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { WMO_CODES } from '~/utils/weatherCodes'
+import { formatTerminalDirectory, parseTerminalCommand } from '~/utils/terminalCommands.js'
 
 const terminalInput = ref<HTMLInputElement | null>(null)
 const visualViewportStyle = ref<Record<string, string>>({})
@@ -217,7 +218,7 @@ const cmdState = ref('normal') // 'normal' | 'draft_password'
 const draftUnlocked = ref(false)
 
 const handleCommand = () => {
-  const input = cmdInput.value.trim().toLowerCase()
+  const input = cmdInput.value.trim()
   cmdInput.value = ''
   // Dismiss the touch keyboard in the submit gesture, not after an async
   // result that might arrive after the user has already tapped to type again.
@@ -226,7 +227,7 @@ const handleCommand = () => {
   }
 
   if (cmdState.value === 'draft_password') {
-    if (input === 'aib') {
+    if (input.toLowerCase() === 'aib') {
       cmdOutput.value = `[AUTHENTICATION SUCCESSFUL]\nAccess granted. Initializing draft sequence...`
       cmdState.value = 'normal'
       draftUnlocked.value = true
@@ -241,48 +242,32 @@ const handleCommand = () => {
 
   if (!input) return
 
-  const isWeatherCommand = input === 'weather' || input.startsWith('weather ')
-  const isTrafficCommand = input === 'traffic' || input.startsWith('traffic ')
+  const parsed = parseTerminalCommand(input)
+  const isWeatherCommand = parsed.action === 'execute' && parsed.command === 'weather'
+  const isTrafficCommand = parsed.action === 'execute' && parsed.command === 'traffic'
   // Keep the current map available while resolving a replacement. Ordinary
   // commands clear it so their output or destination has the screen.
   resetTerminal(isWeatherCommand || isTrafficCommand)
 
-  if (input.startsWith('man ')) {
-    const cmd = input.split(' ')[1]
-    const manPages: Record<string, string> = {
-      pwd: 'NAME\n    pwd - print working directory\nSYNOPSIS\n    pwd\nDESCRIPTION\n    Outputs the absolute path of the current website route you are viewing.',
-      ls: 'NAME\n    ls - list directory contents\nSYNOPSIS\n    ls\nDESCRIPTION\n    Displays a list of available directories (pages) on this website you can seamlessly navigate to using cd.',
-      cd: 'NAME\n    cd - change directory\nSYNOPSIS\n    cd [directory]\nDESCRIPTION\n    Changes the current route. To go to the root directory, simply use `cd home` or `cd ..` or `cd /`.',
-      clear: 'NAME\n    clear - clear the terminal screen\nSYNOPSIS\n    clear\nDESCRIPTION\n    Clears all previous command outputs and active cards (Spotify, Weather, Games).',
-      date: 'NAME\n    date - print current system date\nSYNOPSIS\n    date\nDESCRIPTION\n    Fetches the actual JS date object representation of the current time locally.',
-      nowplaying: 'NAME\n    nowplaying - spotify listener status\nSYNOPSIS\n    nowplaying\nDESCRIPTION\n    Hooks into the server to fetch the exact song Mamoon is currently listening to on Spotify, along with an animated progress bar.',
-      spotify: 'NAME\n    spotify --connect - manage the site owner Spotify authorization\nSYNOPSIS\n    spotify --connect\nDESCRIPTION\n    Opens the owner-only secure website reconnection form. Only the configured Spotify owner account can reconnect.',
-      chmod: 'NAME\n    chmod - change file modes/themes\nSYNOPSIS\n    chmod\nDESCRIPTION\n    A custom toggle that switches the environment from a dark CRT phosphor theme to a light paper aesthetic.',
-      weather: 'NAME\n    weather - get real-time forecast\nSYNOPSIS\n    weather [location]\nDESCRIPTION\n    Contacts Open-Meteo services to pinpoint the exact location and fetch atmospheric temperature readings with ASCII display.',
-      traffic: 'NAME\n    traffic - live road-flow and highway-sensor monitor\nSYNOPSIS\n    traffic [location]\nDESCRIPTION\n    Opens a standalone traffic map without precipitation or weather data. Uses available TomTom/WSDOT feeds.',
-      snake: 'NAME\n    snake - launch snake simulation\nSYNOPSIS\n    snake\nDESCRIPTION\n    A fully-playable clone of the classic cell-arcade game right inside the footer, optimized for keyboard and standard DOS block-graphics.',
-      tetris: 'NAME\n    tetris - launch tetris simulation\nSYNOPSIS\n    tetris\nDESCRIPTION\n    A block-dropping puzzle game clone leveraging rich ANSI color codes. Highly addictive.'
-    }
-
-    if (manPages[cmd]) {
-      cmdOutput.value = manPages[cmd]
-    } else {
-      cmdOutput.value = `No manual entry for ${cmd}`
-    }
+  if (parsed.action === 'output') {
+    cmdOutput.value = parsed.text
     return
   }
 
-  if (input === 'help') {
-    cmdOutput.value = `Available commands:\n- cd <dir>   : Navigate to directory\n- pwd        : Print working directory\n- ls         : List directories\n- clear      : Clear output\n- date       : Show current date\n- nowplaying : Show currently / last playing track\n- spotify --connect : Reauthorize the site owner's Spotify account\n- chmod      : Toggle dark/light mode\n- weather    : Show weather (e.g. weather <city>)\n- traffic    : Show road traffic (e.g. traffic <city>)\n- snake      : Play Snake (desktop only)\n- tetris     : Play Tetris (desktop only)\n- man <cmd>  : Read manual page for command`
+  if (parsed.action === 'connect') {
+    router.push('/spotify/connect')
+    cmdOutput.value = '[SPOTIFY] Opening owner authorization...'
     return
   }
 
-  if (input === 'pwd') {
+  const { command } = parsed
+
+  if (command === 'pwd') {
     cmdOutput.value = route.path === '/' ? '/home/user' : `/home/user${route.path}`
     return
   }
 
-  if (input === 'chmod') {
+  if (command === 'chmod') {
     if (document.body.classList.contains('light-theme')) {
       document.body.classList.remove('light-theme')
       cmdOutput.value = 'Switched to dark mode (755)'
@@ -294,7 +279,7 @@ const handleCommand = () => {
   }
 
   if (isWeatherCommand || isTrafficCommand) {
-    const loc = input.split(' ').slice(1).join(' ') || 'Seattle'
+    const loc = parsed.argument
     const requestId = terminalRunId
     const controller = new AbortController()
     lookupController = controller
@@ -342,7 +327,7 @@ const handleCommand = () => {
     return
   }
 
-  if (input === 'snake') {
+  if (command === 'snake') {
     if (window.innerWidth < 768) {
       cmdOutput.value = `Snake requires a desktop display.`
     } else {
@@ -351,7 +336,7 @@ const handleCommand = () => {
     return
   }
 
-  if (input === 'tetris') {
+  if (command === 'tetris') {
     if (window.innerWidth < 768) {
       cmdOutput.value = `Tetris requires a desktop display.`
     } else {
@@ -360,13 +345,7 @@ const handleCommand = () => {
     return
   }
 
-  if (/^spotify\s+(?:--|—)?connect$/.test(input)) {
-    router.push('/spotify/connect')
-    cmdOutput.value = '[SPOTIFY] Opening owner authorization...'
-    return
-  }
-
-  if (input === 'nowplaying') {
+  if (command === 'nowplaying') {
     if (spotifyLoading.value) return
     spotifyLoading.value = true
     cmdOutput.value = '[SPOTIFY] Fetching track data...'
@@ -380,24 +359,39 @@ const handleCommand = () => {
     return
   }
 
-  if (input === 'ls') {
-    cmdOutput.value = `total 6\n` + [...availableDirs, 'draft (protected)'].map(d => `drwxr-xr-x  2 user  staff   64B  ${d}`).join('\n')
+  if (command === 'ls') {
+    cmdOutput.value = formatTerminalDirectory([...availableDirs, 'draft (protected)'], parsed)
     return
   }
 
-  if (input === 'clear') {
+  if (command === 'whoami') {
+    cmdOutput.value = 'user'
+    return
+  }
+
+  if (command === 'echo') {
+    cmdOutput.value = parsed.argument || ''
+    return
+  }
+
+  if (command === 'clear') {
     cmdOutput.value = ''
     return
   }
 
-  if (input === 'date') {
+  if (command === 'date') {
     cmdOutput.value = new Date().toString()
     return
   }
 
-  if (input.startsWith('cd ')) {
-    const dir = input.split(' ')[1]
-    if (dir === '..') {
+  if (command === 'cd') {
+    const rawDirectory = parsed.argument || 'home'
+    const dir = rawDirectory.startsWith('/') && rawDirectory !== '/' ? rawDirectory.slice(1) : rawDirectory
+    if (dir === '.') {
+      cmdOutput.value = 'Already in the current directory'
+      return
+    }
+    if (dir === '..' || dir === '~') {
       router.push('/').then(() => { if (process.client) window.scrollTo(0, 0) })
       cmdOutput.value = `Navigated to root`
       return
@@ -421,10 +415,7 @@ const handleCommand = () => {
     } else {
       cmdOutput.value = `-bash: cd: ${dir}: No such file or directory`
     }
-    return
   }
-
-  cmdOutput.value = `-bash: ${input}: command not found`
 }
 
 // Global hotkey listening could be added here if we want to focus the input anytime they type
