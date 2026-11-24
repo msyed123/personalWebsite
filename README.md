@@ -66,6 +66,19 @@ All source attributions are visible in the widget footer. Labels use the site's 
 Provider API behavior on a live deployment is not guaranteed by unit tests; credentials and an integration smoke test are required before treating the overlay as production-verified.
 
 
+## Website terminal
+
+Use `help` to list commands, or `man COMMAND`, `help COMMAND`, and
+`COMMAND --help` for a manual. `ls -a` adds virtual entries `.` and `..`;
+`ls -l` uses long formatting and the flags can be combined as `ls -la`.
+`whoami` returns the virtual terminal user. `echo` prints literal text; this
+terminal does not read the host filesystem or expand shell variables. Use
+`cat README` or `cat commands.txt` to read the public virtual files listed by
+`ls`. On a keyboard, Tab completes known commands, flags and paths when it
+can add text; otherwise it moves focus normally. Up/Down recall recent
+commands in the current page only, with no persistence and no password
+or `echo` text recorded.
+
 ## Spotify `nowplaying` — renew directly from the website
 
 Spotify refresh tokens expire **six months after the user authorizes the app**.
@@ -119,7 +132,7 @@ untrusted website.
 
 1. Open the public website at the **same canonical HTTPS host** as the configured
    redirect URI.
-2. Type `spotify --connect` in the existing terminal, or visit
+2. Type `spotify --connect` or `nowplaying --connect` in the existing terminal, or visit
    `/spotify/connect` directly.
 3. Select **Sign in with Spotify**. Spotify handles the login on its own site. Select the same Spotify account as before.
 4. The OAuth callback consumes a short-lived, single-use Redis transaction
