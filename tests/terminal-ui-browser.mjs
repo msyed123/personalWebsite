@@ -32,16 +32,35 @@ try {
   })
   await page.goto(`http://127.0.0.1:${port}/`,{waitUntil:'domcontentloaded',timeout:50000})
   const input=page.getByRole('textbox',{name:'Terminal command'})
+  const prompt = page.getByRole('form',{name:'Terminal'})
+  const idleOutline = await prompt.evaluate(el => {
+    el.querySelector('input').blur()
+    return getComputedStyle(el).outlineStyle
+  })
+  assert.equal(idleOutline, 'none', 'Unfocused terminal should not show a focus outline')
+  const assertTerminalFocus = async () => {
+    const style = await prompt.evaluate(el => {
+      const { color, outlineColor, outlineStyle, outlineWidth } = getComputedStyle(el)
+      return { color, outlineColor, outlineStyle, outlineWidth, inputFocused: el.contains(document.activeElement) }
+    })
+    assert.equal(style.inputFocused, true)
+    assert.equal(style.color, 'rgb(255, 176, 0)', 'Terminal prompt should keep its amber theme')
+    assert.equal(style.outlineColor, style.color)
+    assert.equal(style.outlineStyle, 'solid')
+    assert.equal(style.outlineWidth, '2px')
+  }
   await input.fill('weather')
+  await assertTerminalFocus()
   await input.press('Enter')
-  await page.getByText('LIVE RADAR SIGNAL').waitFor({timeout:20000})
+  await page.getByText('RADAR SIGNAL').waitFor({timeout:20000})
   assert.ok((await page.locator('body').innerText()).includes('Seattle, Washington'))
   assert.ok((await page.locator('body').innerText()).includes('43°'))
   assert.equal(external.length,0,'Forecast/geocode bypassed same-origin proxy')
   await input.fill('traffic Seattle')
+  await assertTerminalFocus()
   await input.press('Enter')
   await page.getByText('LIVE TRAFFIC SIGNAL').waitFor({timeout:20000})
-  assert.equal(await page.getByText('LIVE RADAR SIGNAL').count(),0,'Weather card not dismissed on new command')
+  assert.equal(await page.getByText('RADAR SIGNAL').count(),0,'Weather card not dismissed on new command')
   await page.waitForFunction(() => document.body.innerText.includes('TOMTOM ROADS: AUTH ERROR'), {timeout:25000})
   console.log('PASS: Browser weather uses same-origin Nitro and TomTom errors display safe provider health')
   await page.close()

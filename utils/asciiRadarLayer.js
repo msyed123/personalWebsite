@@ -1,4 +1,5 @@
 import { createRadarTileCache } from './radarTileCache.js'
+import { weatherFrameKey } from './weatherRefresh.js'
 
 // Render weather inside the MapLibre stack, above the road network and
 // below geographic boundaries and place names on OpenFreeMap.
@@ -19,7 +20,28 @@ export function createAsciiRadarLayer({
   // whole frames instead of abruptly replacing the currently displayed cells.
   const sourceIds = ['ascii-radar-tiles-a', 'ascii-radar-tiles-b']
   const layerIds = ['ascii-radar-a', 'ascii-radar-b']
-  const paths = []
+  const paths = new Map()
+  let indexByKey = new Map()
+  let frameIds = []
+  let nextFrameId = 0
+  const slotFrames = [0, 0]
+
+  function setFrames(radarPaths) {
+    const next = new Map()
+    frameIds = radarPaths.filter(path => providerTile
+      ? path != null
+      : typeof path === 'string' && path.startsWith('/')).map(path => {
+      const key = weatherFrameKey(path)
+      const id = next.get(key) ?? indexByKey.get(key) ?? nextFrameId++
+      next.set(key, id)
+      paths.set(id, path)
+      return id
+    })
+    indexByKey = next
+    const retained = new Set([...frameIds, ...slotFrames, pendingIndex, loadingIndex])
+    for (const id of paths.keys()) if (!retained.has(id)) paths.delete(id)
+    return frameIds.length > 0
+  }
   let initialized = false
   let disposed = false
   let activeSlot = 0
@@ -57,7 +79,7 @@ export function createAsciiRadarLayer({
     const uri = new URL(request.url)
     const parts = uri.pathname.match(/^\/(\d+)\/(\d+)\/(\d+)$/)
     const frame = Number(uri.searchParams.get('frame'))
-    if (!parts || !Number.isInteger(frame) || !paths[frame]) {
+    if (!parts || !Number.isInteger(frame) || !paths.has(frame)) {
       return { data: await createImageBitmap(makeCanvas()) }
     }
     const [z, x, y] = parts.slice(1).map(Number)
@@ -74,8 +96,8 @@ export function createAsciiRadarLayer({
         const fetchZ = Math.min(z, providerMaxZoom)
         const fetchX = Math.floor(x / scale)
         const fetchY = Math.floor(y / scale)
-        const url = providerTile?.(paths[frame], fetchZ, fetchX, fetchY) ??
-          'https://tilecache.rainviewer.com' + paths[frame] +
+        const url = providerTile?.(paths.get(frame), fetchZ, fetchX, fetchY) ??
+          'https://tilecache.rainviewer.com' + paths.get(frame) +
           '/256/' + fetchZ + '/' + fetchX + '/' + fetchY + '/2/1_1.png'
 
         const sourceCanvas = await sourceTileCache.load(url, async () => {
@@ -243,6 +265,7 @@ export function createAsciiRadarLayer({
       blendFraction = 0
       loadingIncoming = true
       loadingIndex = incomingIndex
+      slotFrames[slot] = incomingIndex
       gl.getSource(sourceIds[slot])?.setTiles([tileUrl(incomingIndex)])
       applyBlend()
       // Let MapLibre process the source's tile invalidation on a render frame.
@@ -283,12 +306,11 @@ export function createAsciiRadarLayer({
     return !disposed
   }
 
-  function initialize(radarPaths, initialOpacity = 0.7) {
+  function initialize(radarPaths, initialOpacity = 0.7, initialIndex = 0) {
     if (initialized || !radarPaths?.length) return false
-    paths.push(...radarPaths.filter(path => providerTile
-      ? path != null
-      : typeof path === 'string' && path.startsWith('/')))
-    if (!paths.length) return false
+    if (!setFrames(radarPaths)) return false
+    displayedIndex = frameIds[initialIndex] ?? frameIds[0]
+    slotFrames.fill(displayedIndex)
     opacity = initialOpacity
     disposed = false
     addProtocol(scheme, fetchTile)
@@ -307,7 +329,7 @@ export function createAsciiRadarLayer({
     for (let i = 0; i < 2; i++) {
       gl.addSource(sourceIds[i], {
         type: 'raster',
-        tiles: [tileUrl(0)],
+        tiles: [tileUrl(displayedIndex)],
         tileSize: 256,
         minzoom: 0,
         maxzoom: 13
@@ -337,18 +359,22 @@ export function createAsciiRadarLayer({
   }
 
   function showFrame(index, alpha = opacity) {
-    if (!initialized || disposed || !Number.isInteger(index) || !paths[index]) {
+    if (!initialized || disposed || !Number.isInteger(index) || frameIds[index] === undefined) {
       return Promise.resolve(false)
     }
     setOpacity(alpha)
-    pendingIndex = index
+    const id = frameIds[index]
+    pendingIndex = id
     // Do not block a fast scrub on a no-longer-wanted network tile.
-    if (loadingIndex !== null && loadingIndex !== index) cancelPendingLoad?.()
+    if (loadingIndex !== null && loadingIndex !== id) cancelPendingLoad?.()
     if (!running) {
       running = flushRequests().finally(() => {
         running = null
         // A seek may arrive as the previous flush settles.
-        if (!disposed && pendingIndex !== null) showFrame(pendingIndex, opacity)
+        if (!disposed && pendingIndex !== null) {
+          const next = frameIds.indexOf(pendingIndex)
+          if (next >= 0) showFrame(next, opacity)
+        }
       })
     }
     return running
@@ -373,7 +399,7 @@ export function createAsciiRadarLayer({
   }
 
   return {
-    initialize, setOpacity, showFrame, destroy, layerId: layerIds[0],
+    initialize, setFrames, setOpacity, showFrame, destroy, layerId: layerIds[0],
     layerIds, sourceIds
   }
 }

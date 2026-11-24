@@ -91,12 +91,15 @@ try{
        : place
      return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(body)})
    })
+   let radarRefreshStage = 0
    await page.route('https://api.rainviewer.com/public/weather-maps.json',route=>route.fulfill({
-     status:200,contentType:'application/json',
+     status:radarRefreshStage === 2 ? 503 : 200,
+     contentType:'application/json',
      body:JSON.stringify({radar:{past:[
        {path:'/v2/radar/test-1',time:1763870700},
        {path:'/v2/radar/test-2',time:1763871300},
-       {path:'/v2/radar/test-3',time:1763871900}
+       {path:'/v2/radar/test-3',time:1763871900},
+       ...(radarRefreshStage === 1 ? [{path:'/v2/radar/test-4',time:1763872500}] : [])
      ]}})
    }))
    // Exercise the labeled fallback independently of the live IEM service.
@@ -270,7 +273,7 @@ try{
    // The next map command goes through the same terminal without closing first.
    await input.fill('weather Seattle')
    await input.press('Enter')
-   await page.getByText('LIVE RADAR SIGNAL').waitFor({timeout:30000})
+   await page.getByText('RADAR SIGNAL').waitFor({timeout:30000})
    await assertMapGeometry('weather')
    if(await page.getByText('LIVE TRAFFIC SIGNAL').count())throw Error('Traffic-only header survived weather switch')
    const timeline=page.getByRole('group',{name:'Radar timeline'})
@@ -420,6 +423,27 @@ try{
      sliderMax:await slider.getAttribute('max'),sliderValue:await slider.inputValue(),
      firstPassCDNRequests:loadedOnce,secondPassCDNRequests:afterSecondLoop,
      timelineLayout:afterLoopLayout,...info,pageErrors:errors})
+   const freshness = card.locator('[data-weather-freshness]')
+   if ((await freshness.innerText()).includes('New data')) throw Error('Playback must not signal a provider update')
+   if (name === 'desktop') {
+     const goDue = () => page.evaluate(() => {
+       const original = Date.now.bind(Date)
+       Date.now = () => original() + 11 * 60_000
+       document.dispatchEvent(new Event('visibilitychange'))
+     })
+     await chooseFrame(1)
+     radarRefreshStage = 1
+     await goDue()
+     await freshness.getByText(/^New data/).waitFor({timeout:15000})
+     if (await slider.inputValue() !== '1' || await slider.getAttribute('max') !== '3') {
+       throw Error('Refresh must extend the timeline without moving a paused historical selection')
+     }
+     radarRefreshStage = 2
+     await goDue()
+     await freshness.getByText(/^Refresh delayed/).waitFor({timeout:15000})
+     if (await slider.getAttribute('max') !== '3') throw Error('Failed refresh discarded the last good timeline')
+     radarRefreshStage = 0
+   }
    const layerButtons=page.getByRole('group',{name:'Weather map layer'})
    await page.getByText('RainViewer radar fallback (not MRMS)',{exact:false}).waitFor()
    await Promise.all([
@@ -427,7 +451,7 @@ try{
        new URL(req.url()).searchParams.get('REQUEST')==='GetCapabilities',{timeout:10000}),
      layerButtons.getByRole('button',{name:'Precipitation',exact:true}).click({timeout:5000})
    ])
-   await page.getByText('LOADING PRECIPITATION',{exact:true}).waitFor()
+   await freshness.getByText('Loading forecast…',{exact:true}).waitFor()
    // Supersede the metadata request before it resolves; it must not create
    // any forecast tile source or turn Radar's busy state off prematurely.
    await layerButtons.getByRole('button',{name:'Radar',exact:true}).click()

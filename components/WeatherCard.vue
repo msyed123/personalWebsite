@@ -12,7 +12,16 @@
 {{ asciiArt }}
         </div>
         <div class="min-w-0 flex-1">
-          <div class="text-xs uppercase tracking-widest text-terminal-amber-dim mb-1" :class="{'animate-pulse': isPlaying}">{{ weatherLayer === 'radar' ? 'LIVE RADAR SIGNAL' : 'MODEL PRECIPITATION FORECAST' }}</div>
+          <div class="map-signal-heading mb-1 flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
+            <div class="text-xs uppercase tracking-widest text-terminal-amber-dim" :class="{'animate-pulse': isPlaying}">{{ weatherLayer === 'radar' ? 'RADAR SIGNAL' : 'MODEL PRECIPITATION FORECAST' }}</div>
+            <div role="status" data-weather-freshness class="flex items-center gap-1.5 text-[10px] tabular-nums"
+              :class="refreshDelayed ? 'text-terminal-amber' : newWeatherData ? 'text-green-400' : 'text-terminal-amber-dim'">
+              <span aria-hidden="true" class="inline-block h-1.5 w-1.5 shrink-0 rounded-full"
+                :class="newWeatherData && !refreshDelayed ? 'bg-green-400' : 'bg-current opacity-70'"></span>
+              <span v-if="feedRevision">{{ refreshDelayed ? 'Refresh delayed · ' : newWeatherData ? 'New data · ' : '' }}{{ weatherLayer === 'radar' ? 'Radar ' : 'Model run ' }}{{ formatFeedTime(feedRevision) }}</span>
+              <span v-else>{{ layerStatus }}</span>
+            </div>
+          </div>
           <div class="text-lg sm:text-xl font-bold text-terminal-blue leading-tight break-words">{{ weatherData.location }}</div>
         </div>
       </div>
@@ -202,6 +211,7 @@ import {
   forecastCapabilitiesUrl, forecastLegendUrl, forecastTileUrl, readForecastFrames,
   decodeMrmsPixel, mrmsDisplayMark
 } from '~/utils/weatherMapSources.js'
+import { weatherPollDelay, weatherRevision, weatherTimelineUpdate, refreshedWeatherIndex } from '~/utils/weatherRefresh.js'
 
 const props = defineProps({
   weatherData: {
@@ -247,6 +257,15 @@ const mapInstance = shallowRef(null)
 let radarController = null
 let loadWeatherLayer
 let layerRequest
+let refreshTimer
+let updateBadgeTimer
+let lastWeatherCheck = 0
+let activeTimeline
+let lastRainViewerCheck = 0
+let stopWeatherPolling
+const feedRevision = ref(0)
+const newWeatherData = ref(false)
+const refreshDelayed = ref(false)
 const weatherLayer = ref('radar')
 const weatherSource = ref('')
 const layerStatus = ref('AWAITING RADAR')
@@ -293,6 +312,14 @@ let trafficController = null
 let weatherMapDisposed = false
 let animationInterval = null
 let playbackGeneration = 0
+let frameRequest = 0
+
+function formatFeedTime(unixTime) {
+  return new Date(unixTime * 1000).toLocaleString([], {
+    ...(weatherLayer.value === 'precipitation' ? { weekday: 'short' } : {}),
+    hour: '2-digit', minute: '2-digit', timeZoneName: 'short'
+  })
+}
 
 function formatTime(unixTime) {
   if (!unixTime) return '';
@@ -341,6 +368,7 @@ async function showFrame(index) {
   // The playhead shows the requested time immediately. A brief buffering
   // indicator explains why the prior frame stays visible until tiles arrive.
   const activeController = radarController
+  const generation = ++frameRequest
   currentFrame.value = index
   radarLoading.value = true
   try {
@@ -349,7 +377,7 @@ async function showFrame(index) {
   } finally {
     // Rapid scrubs can supersede this request; only the most recent selection
     // may clear its pending/loading indicator.
-    if (radarController === activeController && currentFrame.value === index) radarLoading.value = false
+    if (radarController === activeController && frameRequest === generation) radarLoading.value = false
   }
 }
 
@@ -375,7 +403,7 @@ function toggleTraffic() {
   if (weatherMapDisposed || !trafficController || !trafficLayerReady.value) return
   trafficVisible.value = !trafficVisible.value
   trafficController.setVisible(trafficVisible.value)
-  // Opaque roads and labels render on top of precipitation.
+  // Weather opacity defaults to a lower value when traffic is visible.
 }
 
 function zoomIn() {
@@ -528,23 +556,47 @@ onMounted(async () => {
     trafficController.start();
 
     if (!trafficOnly.value) {
-      loadWeatherLayer = async mode => {
+      const inMrmsCoverage = isMrmsCoverage(lat, lon)
+      const activeDelay = () => weatherPollDelay(weatherLayer.value, weatherSource.value, inMrmsCoverage)
+      const canPoll = () => !weatherMapDisposed && !document.hidden
+      const scheduleRefresh = () => {
+        clearTimeout(refreshTimer)
+        if (!canPoll()) return
+        const delay = Math.max(0, lastWeatherCheck + activeDelay() - Date.now())
+        refreshTimer = setTimeout(() => void loadWeatherLayer(weatherLayer.value, true), delay)
+      }
+      document.addEventListener('visibilitychange', scheduleRefresh)
+      stopWeatherPolling = () => document.removeEventListener('visibilitychange', scheduleRefresh)
+
+      loadWeatherLayer = async (mode, refresh = false) => {
+        if (refresh && (!canPoll() || layerRequest)) return
+        clearTimeout(refreshTimer)
         layerRequest?.abort()
         const request = new AbortController()
         layerRequest = request
         const { signal } = request
         const stillActive = () => !signal.aborted && !weatherMapDisposed
         const fetchMetadata = (url, options = {}) => fetch(url, {
-          ...options, signal: AbortSignal.any([signal, AbortSignal.timeout(6500)])
+          ...options, cache: 'no-cache', signal: AbortSignal.any([signal, AbortSignal.timeout(6500)])
         })
-        stopAnimation()
-        radarController?.destroy()
-        radarController = null
-        timestamps.value = []
-        currentFrame.value = 0
-        weatherSource.value = ''
-        radarLoading.value = true
-        layerStatus.value = 'LOADING ' + mode.toUpperCase()
+        if (!refresh) {
+          stopAnimation()
+          radarController?.destroy()
+          radarController = null
+          timestamps.value = []
+          currentFrame.value = 0
+          weatherSource.value = ''
+          activeTimeline = undefined
+          lastRainViewerCheck = 0
+          feedRevision.value = 0
+          refreshDelayed.value = false
+          newWeatherData.value = false
+          clearTimeout(updateBadgeTimer)
+        }
+        if (!activeTimeline) {
+          radarLoading.value = true
+          layerStatus.value = 'Loading ' + (mode === 'radar' ? 'radar' : 'forecast') + '…'
+        }
         try {
           const { createAsciiRadarLayer } = await import('~/utils/asciiRadarLayer.js')
           if (!stillActive()) return
@@ -557,7 +609,7 @@ onMounted(async () => {
             source = 'gdps'
             settings = { providerTile: forecastTileUrl, providerMaxZoom: 6, keepProviderColors: true }
           } else {
-            if (isMrmsCoverage(lat, lon)) {
+            if (inMrmsCoverage) {
               for (const time of mrmsFrameCandidates()) {
                 if (!stillActive()) return
                 try {
@@ -579,10 +631,16 @@ onMounted(async () => {
             }
             if (!stillActive()) return
             if (!paths.length) {
+              if (activeTimeline?.source === 'mrms') throw Error('MRMS archive unavailable')
+              if (activeTimeline?.source === 'rainviewer' &&
+                Date.now() - lastRainViewerCheck < weatherPollDelay('radar', 'rainviewer', false)) return
+              lastRainViewerCheck = Date.now()
               const response = await fetchMetadata('https://api.rainviewer.com/public/weather-maps.json')
               if (!response.ok) throw Error('Radar metadata unavailable')
               const past = (await response.json()).radar?.past ?? []
-              const frames = past.filter(frame => frame.path?.startsWith('/') && Number.isFinite(frame.time)).slice(-12)
+              const frames = [...new Map(past.filter(frame => frame.path?.startsWith('/') &&
+                Number.isFinite(frame.time)).map(frame => [frame.time, frame])).values()]
+                .sort((a, b) => a.time - b.time).slice(-12)
               paths = frames.map(frame => frame.path)
               times = frames.map(frame => frame.time)
               source = 'rainviewer'
@@ -590,19 +648,54 @@ onMounted(async () => {
           }
           if (!stillActive()) return
           if (!paths.length) throw Error('No weather frames available')
-          const layer = createAsciiRadarLayer({ gl, addProtocol, removeProtocol, ...settings })
-          if (!layer.initialize(paths, weatherOpacity.value)) {
-            throw Error('Weather layer did not initialize')
+          const revision = weatherRevision(source, paths, times)
+          const nextTimeline = { source, paths, revision }
+          const update = weatherTimelineUpdate(activeTimeline, nextTimeline)
+          const before = activeTimeline
+          refreshDelayed.value = update === 'delayed'
+          if (update === 'unchanged' || update === 'delayed') return
+
+          const selected = !before
+            ? (mode === 'radar' ? times.length - 1 : 0)
+            : refreshedWeatherIndex(timestamps.value, times, currentFrame.value, mode === 'radar' && !isPlaying.value)
+          if (!radarController || before?.source !== source) {
+            radarController?.destroy()
+            radarController = null
+            const layer = createAsciiRadarLayer({ gl, addProtocol, removeProtocol, ...settings })
+            if (!layer.initialize(paths, weatherOpacity.value, selected)) {
+              throw Error('Weather layer did not initialize')
+            }
+            radarController = layer
+          } else {
+            radarController.setFrames(paths)
           }
-          radarController = layer
           timestamps.value = times
+          activeTimeline = nextTimeline
           weatherSource.value = source
-          await showFrame(0)
-          if (stillActive() && mode === 'radar') startAnimation()
+          feedRevision.value = revision
+          if (before && update === 'new') {
+            newWeatherData.value = true
+            clearTimeout(updateBadgeTimer)
+            updateBadgeTimer = setTimeout(() => { newWeatherData.value = false }, 12_000)
+          }
+          // Same-provider refreshes reuse the existing controller and cached tiles.
+          // Never restart playback or reset a retained selection on a refresh.
+          void showFrame(selected)
+          if (!before && mode === 'radar') startAnimation()
         } catch {
-          if (stillActive()) layerStatus.value = mode === 'radar' ? 'RADAR UNAVAILABLE' : 'FORECAST UNAVAILABLE'
+          if (stillActive()) {
+            refreshDelayed.value = !!activeTimeline
+            layerStatus.value = mode === 'radar' ? 'Radar unavailable' : 'Forecast unavailable'
+          }
         } finally {
-          if (stillActive()) radarLoading.value = false
+          if (layerRequest === request) {
+            layerRequest = null
+            if (stillActive()) {
+              if (!activeTimeline) radarLoading.value = false
+              lastWeatherCheck = Date.now()
+              scheduleRefresh()
+            }
+          }
         }
       }
       void loadWeatherLayer(weatherLayer.value)
@@ -617,6 +710,9 @@ onUnmounted(() => {
   resizeObserver?.disconnect();
   cancelBridgeResize?.();
   layerRequest?.abort();
+  clearTimeout(refreshTimer);
+  clearTimeout(updateBadgeTimer);
+  stopWeatherPolling?.();
   stopAnimation();
   radarLoading.value = false;
   if (trafficController) trafficController.destroy();
