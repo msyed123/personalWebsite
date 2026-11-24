@@ -685,7 +685,7 @@ onUnmounted(() => {
 }
 
 .weather-map-workspace {
-  grid-template-rows: minmax(clamp(230px, 43dvh, 380px), 1fr) auto;
+  grid-template-rows: minmax(clamp(230px, 55dvh, 520px), 1fr) auto;
 }
 
 @media (min-width: 1024px) {

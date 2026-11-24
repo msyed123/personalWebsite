@@ -176,7 +176,8 @@ try{
        const map = el.querySelector('.map-crt-effect').getBoundingClientRect()
        const viewport = document.documentElement.clientWidth
        return { left: box.left, right: viewport-box.right,
-         top: box.top, bottom: innerHeight-box.bottom, mapRatio:map.height/innerHeight,
+         top: box.top, bottom: innerHeight-box.bottom,
+         mapRatio: (Math.min(map.bottom, box.bottom) - Math.max(map.top, box.top))/innerHeight,
          modal: el.matches(':modal'),
          scrollLocked: getComputedStyle(document.documentElement).overflowY==='hidden',
          overflow: document.documentElement.scrollWidth-viewport,
@@ -390,6 +391,18 @@ try{
        const gl=document.querySelector('.leaflet-gl-layer')?.getBoundingClientRect()
        return map?.width>710 && gl && Math.abs(map.width-gl.width)<4
      },null,{timeout:10000})
+     const landscape=await card.evaluate(el=>{
+       const map=el.querySelector('.map-crt-effect').getBoundingClientRect()
+       const bounds=el.getBoundingClientRect()
+       const canScroll=el.scrollHeight>el.clientHeight
+       el.scrollTop=el.scrollHeight
+       const close=el.querySelector('[aria-label="Close map"]').getBoundingClientRect()
+       el.scrollTop=0
+       return {mapHeight:map.height,canScroll,closeStillVisible:close.top>=bounds.top}
+     })
+     if(landscape.mapHeight<220||!landscape.canScroll||!landscape.closeStillVisible) {
+       throw Error('Short landscape modal must retain map space, scrolling and Close: '+JSON.stringify(landscape))
+     }
      await page.setViewportSize({width,height})
    }
    await closeMap.click()
