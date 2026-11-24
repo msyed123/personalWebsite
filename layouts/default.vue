@@ -498,7 +498,7 @@ const handleCommand = () => {
 }
 
 .terminal-prompt:focus-within {
-  outline: 2px solid currentColor;
+  outline: 1px solid currentColor;
   outline-offset: 3px;
 }
 

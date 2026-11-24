@@ -47,7 +47,7 @@ try {
     assert.equal(style.color, 'rgb(255, 176, 0)', 'Terminal prompt should keep its amber theme')
     assert.equal(style.outlineColor, style.color)
     assert.equal(style.outlineStyle, 'solid')
-    assert.equal(style.outlineWidth, '2px')
+    assert.equal(style.outlineWidth, '1px')
   }
   await input.fill('weather')
   await assertTerminalFocus()
