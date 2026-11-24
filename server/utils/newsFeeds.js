@@ -1,4 +1,5 @@
 import { SaxesParser } from 'saxes'
+import { parseFragment } from 'parse5'
 
 const HN_BASE = 'https://hacker-news.firebaseio.com/v0'
 const cacheLifetime = 10 * 60_000
@@ -8,7 +9,7 @@ const maxRssBytes = 4 * 1024 * 1024
 // Only this registry determines upstream addresses, never user input.
 // Reconfirm source terms before adding a feed; never relay full RSS documents.
 export const newsSourcesByTopic = Object.freeze({
-  headlines: [{ id: 'npr', label: 'NPR', feed: 'https://feeds.npr.org/1001/rss.xml' }],
+  headlines: [{ id: 'npr', label: 'NPR', feed: 'https://feeds.npr.org/1002/rss.xml', editorial: true }],
   seattle: [{ id: 'city-seattle', label: 'City of Seattle', feed: 'https://news.seattle.gov/feed/' }],
   space: [
     { id: 'universe-today', label: 'Universe Today', feed: 'https://www.universetoday.com/rss.xml' },
@@ -31,14 +32,66 @@ function articleUrl(value) {
   }
 }
 
-function article({ title, link, published, byline }, source) {
+const attr = (node, name) => node.attrs?.find(a => a.name === name)?.value
+const hasClass = (node, name) => attr(node, 'class')?.split(/\s+/).includes(name)
+const ignoredTags = new Set(['script', 'style', 'template', 'iframe', 'object', 'noscript'])
+function* children(root) {
+  // Use an iterative walk so even deeply nested feed markup can't overflow the JS stack.
+  const stack = [root]
+  while (stack.length) {
+    const node = stack.pop()
+    if (ignoredTags.has(node.tagName)) continue
+    yield node
+    if (node.childNodes) for (let i = node.childNodes.length - 1; i >= 0; i--) stack.push(node.childNodes[i])
+  }
+}
+
+function visibleText(node) {
+  return cleanText(Array.from(children(node), child => child.nodeName === '#text' ? child.value : '').join(' '))
+}
+
+function nasaImage(encoded) {
+  if (!encoded) return null
+  for (const wrapper of children(parseFragment(encoded))) {
+    if (!hasClass(wrapper, 'hds-media-wrapper')) continue
+    const figure = wrapper.childNodes?.find(node => node.tagName === 'figure')
+    if (!figure) continue
+    const caption = wrapper.childNodes?.find(node => node.tagName === 'figcaption')
+      ?? figure.childNodes?.find(node => node.tagName === 'figcaption')
+    if (!caption) continue
+    const creditNode = Array.from(children(caption)).find(node => hasClass(node, 'hds-credits'))
+    const credit = creditNode && visibleText(creditNode).replace(/^Credit:\s*/i, '')
+    // NASA also publishes partner and copyrighted images. Only use artwork
+    // explicitly credited to NASA itself, in the same wrapper as that image.
+    if (credit !== 'NASA') continue
+    const images = Array.from(children(figure)).filter(node => node.tagName === 'img')
+    if (images.length !== 1) continue
+    try {
+      const url = new URL(attr(images[0], 'src'))
+      if (url.protocol !== 'https:' || url.username || url.password || url.port ||
+          !['www.nasa.gov', 'science.nasa.gov', 'assets.science.nasa.gov'].includes(url.hostname) ||
+          !/\.(?:jpe?g|png|webp)$/i.test(url.pathname)) continue
+      // Use NASA's existing width transform on eligible WordPress media.
+      if (url.hostname === 'www.nasa.gov' && url.searchParams.has('w')) url.searchParams.set('w', '900')
+      const alt = cleanText(attr(images[0], 'alt')).slice(0, 500)
+      return { url: url.href, alt, credit }
+    } catch { /* unsupported image, try the next candidate */ }
+  }
+  return null
+}
+
+function article({ title, link, published, byline, description, encoded }, source) {
   const url = articleUrl(link)
   const time = Date.parse(published)
   const name = cleanText(title)
   if (!url || !name || name.length > 360 || !Number.isFinite(time)) return null
+  const summary = description ? visibleText(parseFragment(description)) : ''
+  const image = source === 'NASA' ? nasaImage(encoded) : null
   return {
     title: name, url, source, byline: cleanText(byline).slice(0, 120),
-    publishedAt: new Date(time).toISOString()
+    publishedAt: new Date(time).toISOString(),
+    ...(summary && summary.length <= 600 ? { summary } : {}),
+    ...(image ? { image } : {})
   }
 }
 
@@ -49,8 +102,14 @@ export function readRssHeadlines(xml, source) {
   let item
   let field
   const fields = { title: 'title', link: 'link', pubDate: 'published', 'dc:creator': 'byline' }
+  if (['NPR', 'NASA', 'Universe Today'].includes(source)) fields.description = 'description'
+  if (source === 'NASA') fields['content:encoded'] = 'encoded'
   const append = text => {
-    if (field && item[field].length < 2500) item[field] += text.slice(0, 2500)
+    if (!field) return
+    // Image attributes and credits appear in larger NASA entries; never hold
+    // an unbounded article. The original markup is neither cached nor sent.
+    const budget = field === 'encoded' ? 200_000 : 2500
+    if (item[field].length < budget) item[field] += text.slice(0, budget - item[field].length)
   }
   parser.on('doctype', () => { throw new Error('RSS declarations not accepted') })
   parser.on('opentag', ({ name }) => {
@@ -166,7 +225,7 @@ export function createNewsReader({ request = (...args) => fetch(...args), now = 
       seen.add(key)
       return true
     }).slice(0, itemLimit))
-    if (!sources[0].ranked) items.sort((left, right) => right.publishedAt.localeCompare(left.publishedAt))
+    if (!sources[0].ranked && !sources[0].editorial) items.sort((left, right) => right.publishedAt.localeCompare(left.publishedAt))
     return {
       topic, items: items.slice(0, 10),
       sources: results.map(({ name, state, fetchedAt }) => ({ name, state, fetchedAt }))

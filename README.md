@@ -181,8 +181,8 @@ Official docs:
 
 ## Terminal news
 
-Type `news` for headlines, `news --topic space` to open a topic, or
-`news --topics` to list them. The same views are linkable from `/news`
+Type `news` for NPR’s curated homepage headlines, `news --topic space` to open a topic, or
+`news --topics` to list them. Terminal commands open the news modal without covering the command prompt. Select a story for a preview, then use **Read original** for the publisher’s page. The same feeds are linkable from `/news`
 (e.g. `/news?topic=space`). The first feeds are NPR (headlines), City of
 Seattle (government updates), Universe Today and NASA (space), and the
 official Hacker News API (community rankings, not a newsroom).
@@ -190,6 +190,6 @@ official Hacker News API (community rankings, not a newsroom).
 To add sources, extend the fixed registry in `server/utils/newsFeeds.js`;
 only add a topic to `utils/newsTopics.js` if it needs its own command option.
 Check publisher reuse terms and test the real feed before adding it.
-The page displays attributed titles, publication dates and original links only.
+The reader shows attributed headlines and short publisher excerpts where available, with original links. Only explicitly NASA-credited images from NASA media URLs are shown; original topic illustrations fill in where no eligible image is available.
 The server coalesces requests, keeps a short in-memory cache, and never
 returns raw feed markup; a failed source is labeled while others keep working.
