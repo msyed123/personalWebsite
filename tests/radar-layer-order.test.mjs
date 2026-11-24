@@ -146,3 +146,21 @@ test('weather appends above roads when they end the style', () => {
   assert.deepEqual(gl.calls.map(call => call.beforeId), [undefined, undefined])
   radar.destroy()
 })
+
+test('rolling a timeline retains tile IDs for the overlapping frames', async () => {
+  const gl = makeGL()
+  const radar = createAsciiRadarLayer({
+    gl, transitionMs: 20, addProtocol: () => {}, removeProtocol: () => {}
+  })
+  assert.equal(radar.initialize(['/old','/middle','/new'], 0.55, 2), true)
+  assert.match(gl.sources.get(radar.sourceIds[0]).tiles[0], /frame=2$/)
+  radar.setFrames(['/middle','/new','/newest'])
+  await radar.showFrame(1)
+  assert.equal(gl.layers.get(radar.layerIds[0]).paint['raster-opacity'], 0.55)
+  await radar.showFrame(2)
+  assert.match(gl.sources.get(radar.sourceIds[1]).tiles[0], /frame=3$/)
+  await radar.showFrame(0)
+  assert.match(gl.sources.get(radar.sourceIds[0]).tiles[0], /frame=1$/)
+  assert.equal(gl.sources.size, 2)
+  radar.destroy()
+})

@@ -14,7 +14,7 @@ test('IEM uses north-origin XYZ and a frame timestamp, not inverted TMS Y', () =
   assert.equal(isMrmsCoverage(61.2, -149.9), false)
   const now = Date.parse('2026-11-23T00:05:55Z')
   const [latest, previous] = mrmsFrameCandidates(now)
-  assert.equal(new Date(latest * 1000).toISOString(), '2026-11-22T23:56:00.000Z')
+  assert.equal(new Date(latest * 1000).toISOString(), '2026-11-23T00:00:00.000Z')
   assert.equal(latest - previous, 120)
   assert.equal(mrmsFrames(latest).length, 12)
   assert.equal(mrmsFrames(latest).at(-1), latest)

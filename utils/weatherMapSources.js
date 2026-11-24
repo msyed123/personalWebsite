@@ -16,8 +16,8 @@ function iemDate(unix) {
 
 export function mrmsFrameCandidates(now = Date.now()) {
   // Archive lags several minutes. Probe the newest candidate before using it.
-  const latest = Math.floor((now / 1000 - 8 * 60) / 120) * 120
-  return Array.from({ length: 4 }, (_, i) => latest - i * 120)
+  const latest = Math.floor((now / 1000 - 4 * 60) / 120) * 120
+  return Array.from({ length: 6 }, (_, i) => latest - i * 120)
 }
 
 export function mrmsFrames(latest) {

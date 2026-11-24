@@ -49,8 +49,8 @@
           <button @click="cmdOutput = ''" class="hover:text-red-500 shrink-0 ml-4">[x]</button>
         </div>
 
-        <form class="flex gap-3 items-center w-full" aria-label="Terminal" @submit.prevent="handleCommand">
-          <span class="text-terminal-blue font-bold tracking-widest whitespace-nowrap shrink-0">{{ cmdState === 'draft_password' ? 'PASSWORD >' : '~ $' }}</span>
+        <form class="terminal-prompt flex gap-3 items-center w-full text-terminal-amber" aria-label="Terminal" @submit.prevent="handleCommand">
+          <span class="font-bold tracking-widest whitespace-nowrap shrink-0">{{ cmdState === 'draft_password' ? 'PASSWORD >' : '~ $' }}</span>
           <input
             ref="terminalInput"
             v-model="cmdInput"
@@ -490,8 +490,8 @@ const handleCommand = () => {
   min-width: 0;
 }
 
-.terminal-workspace-map footer form:focus-within {
-  outline: 1px solid #00d2ff;
+.terminal-prompt:focus-within {
+  outline: 2px solid currentColor;
   outline-offset: 3px;
 }
 
