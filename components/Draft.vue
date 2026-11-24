@@ -14,8 +14,15 @@
           <span>{{ currentTeamIndex + 1 }} left</span>
         </div>
         <div v-if="!finalKnown" class="draft-wheel">
-          <Wheel ref="wheel" :items="wheelLabels" :size="600" :durationMs="2800" :minTurns="5" :maxTurns="7"
+          <Wheel v-show="!showingReveal" ref="wheel" :items="wheelLabels" :size="600" :durationMs="2800" :minTurns="5" :maxTurns="7"
             @ready="wheelReady = true" @spin-start="spinning = true" @spin-end="handleSpinEnd" />
+          <figure v-if="showingReveal && latestTeam" class="featured-reveal">
+            <DraftPortrait :src="latestTeam.data.picture?.url" :name="latestTeam.data.name?.[0]?.text" eager />
+            <figcaption>
+              <span>Pick {{ pickNumber(0) }}</span>
+              <strong>{{ latestTeam.data.name?.[0]?.text || 'Unknown' }}</strong>
+            </figcaption>
+          </figure>
         </div>
         <div v-else class="final-callout">
           <span aria-hidden="true">01</span>
@@ -47,10 +54,8 @@
           <li v-for="(dude, index) in revealedTeams" :key="dude._key" class="draft-pick"
             :class="{ 'first-pick': pickNumber(index) === 1 }" :data-pick="pickNumber(index)">
             <div class="pick-number"><span class="sr-only">Pick </span>{{ String(pickNumber(index)).padStart(2, '0') }}</div>
-            <div aria-hidden="true" class="pick-avatar">
-              <img v-if="dude.data.picture?.url" :src="dude.data.picture.url" alt="" loading="lazy">
-              <span v-else>{{ firstName(dude.data.name?.[0]?.text).slice(0, 2) }}</span>
-            </div>
+            <DraftPortrait :src="dude.data.picture?.url" :name="dude.data.name?.[0]?.text"
+              :eager="index === 0" />
             <div class="min-w-0">
               <h3 class="break-words font-bold text-terminal-amber">{{ dude.data.name?.[0]?.text || 'Unknown' }}</h3>
               <p v-if="dude.data.previousteamname?.[0]?.text" class="mt-1 break-words text-xs text-terminal-amber-dim">{{ dude.data.previousteamname[0].text }}</p>
@@ -68,10 +73,11 @@
 
 <script>
 import Wheel from "~/components/Wheel.vue";
+import DraftPortrait from "~/components/DraftPortrait.vue";
 
 export default {
   name: "Draft",
-  components: { Wheel },
+  components: { Wheel, DraftPortrait },
   data() {
     return {
       loading: true,
@@ -80,11 +86,13 @@ export default {
       revealedTeams: [],
       currentTeamIndex: null,
       spinning: false,
+      showingReveal: false,
       wheelReady: false,
       done: false,
     };
   },
   computed: {
+    latestTeam() { return this.revealedTeams[0]; },
     isBusy() { return this.spinning; },
     wheelLabels() {
       if (this.currentTeamIndex == null) return [];
@@ -144,17 +152,16 @@ export default {
 
       // The remaining array is in wheel order. Using its position also makes
       // the pointer settle on the correct segment when two names match.
+      this.showingReveal = false;
       await wheel.spinTo(this.currentTeamIndex);
-      
-      const raw = this.dudes[this.currentTeamIndex];
-      this.revealedTeams.unshift(raw);
-      this.currentTeamIndex--;
+      this.revealViaInsertOnly(this.currentTeamIndex);
     },
 
     revealViaInsertOnly(idx) {
       const raw = this.dudes[idx];
       this.revealedTeams.unshift(raw);
       this.currentTeamIndex--;
+      this.showingReveal = true;
     },
 
     async revealFinal() {
@@ -217,7 +224,8 @@ export default {
 .final-callout span { color: var(--highlight); font-size: 2.5rem; font-weight: 700; line-height: 1; }
 .final-callout p { font-size: .8rem; }
 .draft-pick {
-  display: grid; grid-template-columns: 2ch 2.35rem minmax(0, 1fr);
+  --portrait-size: min(5.25rem, 27vw);
+  display: grid; grid-template-columns: 2ch var(--portrait-size) minmax(0, 1fr);
   align-items: center; gap: .75rem; padding: .8rem 1rem;
   border-bottom: 1px solid var(--line);
 }
@@ -225,11 +233,32 @@ export default {
 .pick-number { color: var(--accent); font-weight: 700; font-variant-numeric: tabular-nums; }
 .first-pick { background: var(--highlight-wash); box-shadow: inset 2px 0 var(--highlight); }
 .first-pick .pick-number { color: var(--highlight); }
-.pick-avatar {
-  display: grid; place-items: center; aspect-ratio: 1; border: 1px solid var(--line);
-  background: var(--avatar-bg); color: var(--bar-text); font-size: .65rem; text-transform: uppercase; overflow: hidden;
+.draft-is-complete .first-pick { --portrait-size: min(7rem, 36vw); }
+.featured-reveal {
+  width: min(100%, 22.5rem, 48svh);
+  aspect-ratio: 1;
+  margin-inline: auto;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  place-content: center;
+  justify-items: center;
+  gap: .65rem;
+  text-align: center;
 }
-.pick-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.featured-reveal .draft-portrait {
+  width: min(12rem, 48vw, 27svh);
+  border-color: var(--accent);
+  box-shadow: 0 0 1rem rgb(0 210 255 / 12%);
+}
+.featured-reveal figcaption { max-width: 100%; overflow-wrap: anywhere; }
+.featured-reveal figcaption span {
+  display: block;
+  color: var(--accent);
+  font-size: .78rem;
+  text-transform: uppercase;
+  letter-spacing: .1em;
+}
+.featured-reveal figcaption strong { font-size: clamp(.95rem, 2.5vw, 1.2rem); }
 .slide-enter-active, .slide-move { transition: transform .22s ease, opacity .22s ease; }
 .slide-enter-from { opacity: 0; transform: translateY(-.3rem); }
 @media (max-width: 639px) {
@@ -239,6 +268,8 @@ export default {
 @media (min-width: 800px) {
   .draft-workspace { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 1.25rem; }
   .draft-is-complete { grid-template-columns: minmax(0, 1fr); }
+  .draft-pick { --portrait-size: 6.75rem; }
+  .draft-is-complete .first-pick { --portrait-size: 9.5rem; }
 }
 @media (prefers-reduced-motion: reduce) {
   .slide-enter-active, .slide-move { transition: none; }
