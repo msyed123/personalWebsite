@@ -22,5 +22,17 @@ globalThis.fetch = async (input, init) => {
       status:403, headers:{'Content-Type':'application/json'}
     })
   }
+  const newsItems = {
+    'https://feeds.npr.org/1001/rss.xml': ['A sample national headline', 'https://www.npr.org/example'],
+    'https://news.seattle.gov/feed/': ['A sample Seattle headline', 'https://news.seattle.gov/example/'],
+    'https://www.nasa.gov/news-release/feed/': ['A sample NASA headline', 'https://www.nasa.gov/example/'],
+    'https://www.universetoday.com/rss.xml': ['A sample independent space headline', 'https://www.universetoday.com/articles/example']
+  }
+  if (Object.hasOwn(newsItems, url)) {
+    const [title, link] = newsItems[url]
+    const xml = '<rss><channel><item><title>' + title + '</title><link>' + link +
+      '</link><pubDate>Tue, 24 Nov 2026 20:00:00 GMT</pubDate></item></channel></rss>'
+    return new Response(xml, { headers: { 'Content-Type': 'application/rss+xml' } })
+  }
   return nativeFetch(input, init)
 }

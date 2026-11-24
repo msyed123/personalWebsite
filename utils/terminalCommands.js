@@ -1,3 +1,5 @@
+import { defaultNewsTopic, isNewsTopic, newsTopics } from './newsTopics.js'
+
 const commands = {
   cd: { synopsis: 'cd [DIRECTORY]', summary: 'Change directory.', detail: 'Use cd, cd ~, cd /, cd home, or cd .. to return home. Use cd . to stay in the current directory. Run ls for the available directories.' },
   pwd: { synopsis: 'pwd', summary: 'Print the current directory.' },
@@ -17,6 +19,11 @@ const commands = {
   chmod: { synopsis: 'chmod', summary: 'Toggle the website’s light and dark themes.', detail: 'This site-specific shortcut does not change file permissions.' },
   weather: { synopsis: 'weather [LOCATION]', summary: 'Open the weather map.', detail: 'Locations may contain spaces. The default is Seattle.' },
   traffic: { synopsis: 'traffic [LOCATION]', summary: 'Open the traffic map.', detail: 'Locations may contain spaces. The default is Seattle.' },
+  news: {
+    synopsis: 'news [--topic TOPIC | --topics]',
+    summary: 'Read the latest headlines and topic feeds.',
+    options: '    --topic TOPIC  Open a specific feed.\n    --topics       List available feeds.'
+  },
   snake: { synopsis: 'snake', summary: 'Play Snake on desktop.' },
   tetris: { synopsis: 'tetris', summary: 'Play Tetris on desktop.' },
   help: { synopsis: 'help [COMMAND]', summary: 'List commands, or show the manual for one command.' },
@@ -90,6 +97,16 @@ export function parseTerminalCommand(input) {
     if (args.some(arg => option(arg).startsWith('-'))) return usage()
     return { action: 'execute', command, argument: args.join(' ') || 'Seattle' }
   }
+  if (command === 'news') {
+    const topics = newsTopics.map(({ id }) => id).join(', ')
+    if (!args.length) return { action: 'execute', command, argument: defaultNewsTopic }
+    if (args.length === 1 && option(args[0]) === '--topics') return output('News topics: ' + topics)
+    if (args.length === 2 && option(args[0]) === '--topic') {
+      if (isNewsTopic(args[1])) return { action: 'execute', command, argument: args[1] }
+      return output('news: unknown topic. Available topics: ' + topics)
+    }
+    return usage()
+  }
   if (command === 'cd') {
     if (args.length > 1 || option(args[0])?.startsWith('-')) return usage()
     return { action: 'execute', command, argument: args[0] || 'home' }
@@ -144,9 +161,12 @@ export function completeTerminalInput(input, directories = []) {
     candidates = virtualTerminalFiles.map(file => start + file)
   } else if (command === 'man' || command === 'help') {
     candidates = [...names, '--help']
+  } else if (/^news\s+(?:--|[—–])topic$/.test(prefix)) {
+    candidates = newsTopics.map(({ id }) => id)
   } else if (known(command)) {
     candidates = ['--help']
     if (command === 'nowplaying') candidates.push('--connect')
+    if (command === 'news') candidates.push('--topic', '--topics')
     if (command === 'ls') candidates.push('--all', '-a', '-l', '-al', '-la')
   } else return null
 

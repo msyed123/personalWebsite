@@ -17,6 +17,7 @@
         <NuxtLink to="/courses" class="text-terminal-amber-dim hover:text-terminal-amber transition-colors duration-200 uppercase before:content-['//_'] before:text-terminal-blue before:mr-1">courses</NuxtLink>
         <NuxtLink to="/contact" class="text-terminal-amber-dim hover:text-terminal-amber transition-colors duration-200 uppercase before:content-['//_'] before:text-terminal-blue before:mr-1">contact</NuxtLink>
         <NuxtLink to="/diary" class="text-terminal-amber-dim hover:text-terminal-amber transition-colors duration-200 uppercase before:content-['//_'] before:text-terminal-blue before:mr-1">diary</NuxtLink>
+        <NuxtLink to="/news" class="text-terminal-amber-dim hover:text-terminal-amber transition-colors duration-200 uppercase before:content-['//_'] before:text-terminal-blue before:mr-1">news</NuxtLink>
       </nav>
     </header>
 
@@ -74,6 +75,7 @@
 <script setup lang="ts">
 import { nextTick, ref, watch, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
+import { newsLocation } from '~/utils/newsTopics.js'
 import { WMO_CODES } from '~/utils/weatherCodes'
 import {
   completeTerminalInput, createTerminalHistory, formatTerminalDirectory,
@@ -216,7 +218,7 @@ onUnmounted(() => {
   viewport?.removeEventListener('scroll', syncVisualViewport)
 })
 
-const availableDirs = ['about', 'projects', 'courses', 'contact', 'diary', 'home']
+const availableDirs = ['about', 'projects', 'courses', 'contact', 'diary', 'news', 'home']
 const cmdState = ref('normal') // 'normal' | 'draft_password'
 
 const draftUnlocked = ref(false)
@@ -293,6 +295,11 @@ const handleCommand = () => {
   }
 
   const { command } = parsed
+
+  if (command === 'news') {
+    router.push(newsLocation(parsed.argument)).then(() => window.scrollTo(0, 0))
+    return
+  }
 
   if (command === 'pwd') {
     cmdOutput.value = route.path === '/' ? '/home/user' : `/home/user${route.path}`
