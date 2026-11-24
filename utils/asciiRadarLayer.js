@@ -1,8 +1,7 @@
 import { createRadarTileCache } from './radarTileCache.js'
 
-// Render the existing pixelated RainViewer precipitation as a MapLibre raster
-// layer INSIDE the vector stack. Roads, road labels and traffic always draw above
-// the radar rather than being washed out by a full-screen Leaflet canvas.
+// Render weather inside the MapLibre stack, above the road network and
+// below geographic boundaries and place names on OpenFreeMap.
 let nextProtocolId = 0
 
 export const radarBlendWeights = (fraction, opacity) => {
@@ -294,13 +293,17 @@ export function createAsciiRadarLayer({
     disposed = false
     addProtocol(scheme, fetchTile)
 
-    // Radar belongs above land/water fills but below geographic lines,
-    // traffic observations and all text labels.
-    const style = gl.getStyle()
-    const firstRoad = style.layers.find(layer =>
-      layer.type === 'line' && /road|highway|motorway|street|bridge|tunnel/.test(layer.id))
-    const beforeId = firstRoad?.id ||
-      style.layers.find(layer => layer.type === 'symbol')?.id
+    const layers = gl.getStyle().layers
+    // OpenFreeMap interleaves water labels, roads, shields and later route
+    // labels. The first symbol is not the end of the transportation stack.
+    const lastRoad = layers.findLastIndex(layer =>
+      ['transportation', 'transportation_name'].includes(layer['source-layer']) ||
+      layer.source === 'traffic-roads' ||
+      /^(?:road|highway|motorway|street|bridge|tunnel|railway)[_-]/.test(layer.id)
+    )
+    const beforeId = lastRoad >= 0
+      ? layers[lastRoad + 1]?.id
+      : layers.find(layer => layer.type === 'symbol')?.id
     for (let i = 0; i < 2; i++) {
       gl.addSource(sourceIds[i], {
         type: 'raster',

@@ -9,7 +9,15 @@ function makeGL(roads = true, onSetTiles = () => {}) {
   const style = [
     {id:'background',type:'background'},
     {id:'water',type:'fill'},
-    ...(roads ? [{id:'highway_minor',type:'line'},{id:'highway_major',type:'line'}] : []),
+    ...(roads ? [
+      {id:'water_name',type:'symbol'},
+      {id:'traffic-road-casing',type:'line',source:'traffic-roads'},
+      {id:'traffic-road-lines',type:'line',source:'traffic-roads'},
+      {id:'highway_minor',type:'line'},
+      {id:'highway_major',type:'line'},
+      {id:'shield',type:'symbol','source-layer':'transportation_name'},
+      {id:'boundary_state',type:'line','source-layer':'boundary'}
+    ] : []),
     {id:'place_name',type:'symbol'}
   ]
   const gl = {
@@ -48,7 +56,7 @@ test('crossfade weights interpolate all cell values smoothly, including frame wr
   assert.deepEqual(radarBlendWeights(10,0.7),{previous:0,next:0.7})
 })
 
-test('dual ASCII radar layers stay below geographic roads and crossfade old/new data', async () => {
+test('both weather layers cover roads and shields, preserve place labels and crossfade', async () => {
   const gl=makeGL()
   let protocolName,registered=false
   const radar=createAsciiRadarLayer({
@@ -58,7 +66,7 @@ test('dual ASCII radar layers stay below geographic roads and crossfade old/new 
   })
   assert.equal(radar.initialize(['/v2/radar/old','/v2/radar/middle','/v2/radar/new'],0.55),true)
   assert.equal(registered,true)
-  assert.deepEqual(gl.calls.map(c=>c.beforeId),['highway_minor','highway_minor'])
+  assert.deepEqual(gl.calls.map(c=>c.beforeId),['boundary_state','boundary_state'])
   assert.equal(gl.layers.get(radar.layerIds[0]).paint['raster-opacity'],0.55)
   assert.equal(gl.layers.get(radar.layerIds[1]).paint['raster-opacity'],0)
   assert.deepEqual(gl.layers.get(radar.layerIds[0]).paint['raster-opacity-transition'],
@@ -116,5 +124,25 @@ test('radar falls back beneath first text label if there are no road layers', ()
   const radar=createAsciiRadarLayer({gl,addProtocol:()=>{},removeProtocol:()=>{}})
   assert.equal(radar.initialize(['/v2/radar/one']),true)
   assert.deepEqual(gl.calls.map(c=>c.beforeId),['place_name','place_name'])
+  radar.destroy()
+})
+
+test('forecast uses the same road ordering as radar', () => {
+  const gl = makeGL()
+  const forecast = createAsciiRadarLayer({
+    gl, providerTile: () => '/forecast.png', keepProviderColors: true,
+    addProtocol: () => {}, removeProtocol: () => {}
+  })
+  assert.equal(forecast.initialize([{ time: 100 }]), true)
+  assert.deepEqual(gl.calls.map(call => call.beforeId), ['boundary_state', 'boundary_state'])
+  forecast.destroy()
+})
+
+test('weather appends above roads when they end the style', () => {
+  const gl = makeGL()
+  gl.getStyle = () => ({ layers: [{id:'land',type:'fill'}, {id:'road',type:'line','source-layer':'transportation'}] })
+  const radar = createAsciiRadarLayer({gl,addProtocol:()=>{},removeProtocol:()=>{}})
+  assert.equal(radar.initialize(['/one']), true)
+  assert.deepEqual(gl.calls.map(call => call.beforeId), [undefined, undefined])
   radar.destroy()
 })

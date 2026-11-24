@@ -16,6 +16,14 @@ for(let y=0;y<256;y++)for(let x=0;x<256;x++){
  storm.data[i+3]=rain?225:0
 }
 const stormTile=PNG.sync.write(storm)
+const forecastPaint=new PNG({width:256,height:256})
+for(let i=0;i<forecastPaint.data.length;i+=4) {
+  forecastPaint.data[i]=18
+  forecastPaint.data[i+1]=236
+  forecastPaint.data[i+2]=145
+  forecastPaint.data[i+3]=255
+}
+const forecastTile=PNG.sync.write(forecastPaint)
 const variants=[stormTile]
 for(const variant of [1,2]) {
   const alt=new PNG({width:256,height:256})
@@ -120,7 +128,7 @@ try{
        return
      }
      forecastRequests++
-     await route.fulfill({status:200,contentType:'image/png',body:stormTile})
+     await route.fulfill({status:200,contentType:'image/png',body:forecastTile})
    })
    await page.route('https://tilecache.rainviewer.com/**',route=>{
      const url=route.request().url()
@@ -187,7 +195,7 @@ try{
    await input.press('Enter')
    await page.getByText('LIVE TRAFFIC SIGNAL').waitFor({timeout:35000})
    await page.waitForSelector('.maplibregl-canvas',{timeout:25000})
-   await page.waitForFunction(()=>document.body.innerText.includes('TOMTOM ROADS: LIVE')&&document.body.innerText.includes('WSDOT SENSORS: LIVE'),{timeout:30000})
+   await page.waitForFunction(()=>document.body.textContent.includes('TOMTOM ROADS: LIVE')&&document.body.textContent.includes('WSDOT SENSORS: LIVE'),{timeout:30000})
    await page.waitForTimeout(1500)
    const card=page.locator('[data-terminal-map-card]')
    const assertMapGeometry = async mode => {
@@ -237,6 +245,14 @@ try{
    if(await card.getByRole('group',{name:'Radar timeline'}).count()) {
      throw Error('Dedicated traffic mode must not contain a weather sidebar')
    }
+   const compactControls=page.getByRole('button',{name:'Controls',exact:true})
+   const hideControls=page.getByRole('button',{name:'Hide controls',exact:true})
+   if(name==='mobile') {
+     if(await page.getByRole('button',{name:'Turn traffic overlay off'}).count()) {
+       throw Error('Mobile traffic tools should start collapsed')
+     }
+     await compactControls.click()
+   } else if(await compactControls.count()) throw Error('Desktop must keep inline controls')
    const info=await card.evaluate(el=>({
      text:el.innerText.slice(0,600),
      width:Math.round(el.getBoundingClientRect().width),
@@ -250,7 +266,7 @@ try{
    await page.getByRole('button',{name:'Turn traffic overlay off'}).click()
    await page.getByRole('button',{name:'Turn traffic overlay on'}).waitFor({timeout:5000})
    await card.screenshot({path:`preview-output/traffic-card-${name}-off.png`})
-   if(!info.text.includes('TOMTOM ROADS: LIVE'))throw Error('No per-provider health')
+   if(!(await card.textContent()).includes('TOMTOM ROADS: LIVE'))throw Error('No per-provider health')
    // The next map command goes through the same terminal without closing first.
    await input.fill('weather Seattle')
    await input.press('Enter')
@@ -258,22 +274,44 @@ try{
    await assertMapGeometry('weather')
    if(await page.getByText('LIVE TRAFFIC SIGNAL').count())throw Error('Traffic-only header survived weather switch')
    const timeline=page.getByRole('group',{name:'Radar timeline'})
+   const mapViewportLocator=card.locator('.map-crt-effect')
+   if(name==='mobile') {
+     if(await timeline.count()) throw Error('Mobile weather tools should start collapsed')
+     // Wait for the provider name to settle before comparing geometry; the
+     // attribution can wrap to a different number of lines as data arrives.
+     await page.getByText('RainViewer radar fallback (not MRMS)',{exact:false}).waitFor()
+     const collapseHeight=(await mapViewportLocator.boundingBox()).height
+     await compactControls.click()
+     await timeline.waitFor()
+     const expandedHeight=(await mapViewportLocator.boundingBox()).height
+     if(Math.abs(expandedHeight-collapseHeight)>2) throw Error('Opening mobile controls resized the map')
+     await hideControls.click()
+     if(await timeline.count()) throw Error('Mobile weather controls did not hide')
+     await compactControls.click()
+   }
    await timeline.waitFor({timeout:15000})
    const weatherLayout=await card.evaluate(el=>{
      const map=el.querySelector('.map-crt-effect').getBoundingClientRect()
      const controls=el.querySelector('[aria-label="Radar timeline"]').getBoundingClientRect()
-     return {mapTop:map.top,mapRight:map.right,mapBottom:map.bottom,
-       mapLeft:map.left,controlsTop:controls.top,controlsLeft:controls.left,
+     return {mapTop:map.top,mapRight:map.right,mapBottom:map.bottom,mapLeft:map.left,
+       controlsTop:controls.top,controlsBottom:controls.bottom,controlsLeft:controls.left,
        controlsRight:controls.right,timelines:el.querySelectorAll('[aria-label="Radar timeline"]').length}
    })
    if(weatherLayout.timelines!==1 || (name==='desktop'
      ? weatherLayout.controlsLeft<weatherLayout.mapRight+8 ||
        Math.abs(weatherLayout.controlsTop-weatherLayout.mapTop)>2
-     : weatherLayout.controlsTop<weatherLayout.mapBottom+8 ||
-       Math.abs(weatherLayout.controlsLeft-weatherLayout.mapLeft)>2 ||
-       Math.abs(weatherLayout.controlsRight-weatherLayout.mapRight)>2)) {
-     throw Error('Weather timeline should sit beside desktop map and below mobile map: '+JSON.stringify(weatherLayout))
+     : weatherLayout.controlsTop<weatherLayout.mapTop ||
+       weatherLayout.controlsBottom>weatherLayout.mapBottom ||
+       (weatherLayout.controlsBottom-weatherLayout.controlsTop)>0.55*(weatherLayout.mapBottom-weatherLayout.mapTop) ||
+       weatherLayout.controlsLeft<weatherLayout.mapLeft ||
+       weatherLayout.controlsRight>weatherLayout.mapRight)) {
+     throw Error('Weather controls should sit beside desktop map and inside mobile map: '+JSON.stringify(weatherLayout))
    }
+   const opacity=page.getByRole('slider',{name:'Weather opacity'})
+   await opacity.press('Home')
+   if(await opacity.inputValue()!=='0') throw Error('Opacity not adjustable to 0%')
+   await opacity.press('End')
+   if(await opacity.inputValue()!=='100') throw Error('Opacity not adjustable to 100%')
    const slider=page.getByRole('slider',{name:'Scrub radar timeline'})
    await page.waitForFunction(() => {
      const input=document.querySelector('input[aria-label="Scrub radar timeline"]')
@@ -405,8 +443,37 @@ try{
    ])
    await page.getByText('Millimetres accumulated in the preceding hour.',{exact:false}).waitFor()
    await page.getByRole('slider',{name:'Scrub precipitation timeline'}).waitFor()
+   if(await opacity.inputValue()!=='100') throw Error('Switching layers lost custom opacity')
    if(!forecastRequests || await page.getByRole('group',{name:'Radar timeline'}).count()) {
      throw Error('The precipitation forecast did not replace the radar')
+   }
+   if(name==='desktop') {
+     // Read actual compositor pixels with a loaded, static forecast frame.
+     const render = async key => {
+       await opacity.press(key)
+       await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))))
+       return PNG.sync.read(await mapViewportLocator.screenshot())
+     }
+     // Let the fixture raster actually reach the compositor before sampling.
+     let opaque
+     let forecastPixels=0
+     for(let attempt=0;attempt<10 && forecastPixels<100;attempt++) {
+       opaque=await render('End')
+       forecastPixels=0
+       for(let i=0;i<opaque.data.length;i+=4) {
+         if(opaque.data[i]<45 && opaque.data[i+1]>190 && opaque.data[i+2]>115 && opaque.data[i+2]<165) forecastPixels++
+       }
+     }
+     if(forecastPixels<100) throw Error('Loaded forecast never rendered its expected color')
+     const clear=await render('Home')
+     let coveredRoadPixels=0
+     for(let i=0;i<clear.data.length;i+=4) {
+       const isTraffic=clear.data[i]>225 && clear.data[i+1]>=100 && clear.data[i+1]<=185 && clear.data[i+2]<80
+       const isForecast=opaque.data[i]<45 && opaque.data[i+1]>190 &&
+         opaque.data[i+2]>115 && opaque.data[i+2]<165
+       if(isTraffic && isForecast) coveredRoadPixels++
+     }
+     if(coveredRoadPixels<10) throw Error('Expected the visible traffic line to sit beneath full weather opacity: '+coveredRoadPixels)
    }
    if(name==='mobile') {
      await page.setViewportSize({width:844,height:390})
@@ -418,14 +485,15 @@ try{
      const landscape=await card.evaluate(el=>{
        const map=el.querySelector('.map-crt-effect').getBoundingClientRect()
        const bounds=el.getBoundingClientRect()
-       const canScroll=el.scrollHeight>el.clientHeight
-       el.scrollTop=el.scrollHeight
+       const sheet=el.querySelector('#map-controls')
+       const canScroll=sheet.scrollHeight>sheet.clientHeight
+       sheet.scrollTop=sheet.scrollHeight
        const close=el.querySelector('[aria-label="Close map"]').getBoundingClientRect()
-       el.scrollTop=0
+       sheet.scrollTop=0
        return {mapHeight:map.height,canScroll,closeStillVisible:close.top>=bounds.top}
      })
-     if(landscape.mapHeight<220||!landscape.canScroll||!landscape.closeStillVisible) {
-       throw Error('Short landscape modal must retain map space, scrolling and Close: '+JSON.stringify(landscape))
+     if(landscape.mapHeight<180||!landscape.canScroll||!landscape.closeStillVisible) {
+       throw Error('Short landscape should scroll the controls, not obscure the map or Close: '+JSON.stringify(landscape))
      }
      // A shorter portrait visual viewport simulates the phone keyboard
      // reserving space; the same input must still be reachable below the map.
