@@ -80,7 +80,7 @@ export function readRssHeadlines(xml, source) {
 
 async function providerText(url, request, maxBytes) {
   const res = await request(url, {
-    signal: AbortSignal.timeout(4500), redirect: 'error',
+    signal: AbortSignal.timeout(maxBytes === maxRssBytes ? 12_000 : 4500), redirect: 'error',
     headers: { 'User-Agent': 'msyed.space RSS reader (headlines only)' }
   })
   if (!res.ok || !res.body) throw new Error('Feed unavailable')
