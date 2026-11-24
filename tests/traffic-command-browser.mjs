@@ -60,9 +60,21 @@ try{
    page.on('request',req=>{if(req.url().includes('rainviewer.com'))radarRequests++})
    // Both terminal commands now use the same-origin Nitro proxy, not direct
    // browser requests to geocoding/forecast providers.
-   await page.route('**/api/terminal-lookup**', route => {
+   let resumeSlowLookup, slowLookupHandled
+   const slowLookup = new Promise(resolve=>{resumeSlowLookup=resolve})
+   const completedSlowLookup = new Promise(resolve=>{slowLookupHandled=resolve})
+   await page.route('**/api/terminal-lookup**', async route => {
      const query = new URL(route.request().url()).searchParams
      const city = query.get('city') || 'Seattle'
+     if(city==='unlisted') {
+       return route.fulfill({status:404,json:{statusMessage:'City not found'}})
+     }
+     if(city==='slow-city') {
+       await slowLookup
+       await route.fulfill({status:200,json:{lat:0,lon:0,location:'Stale city'}}).catch(()=>{})
+       slowLookupHandled()
+       return
+     }
      const place = city.toLowerCase() === 'boston'
        ? { lat:42.3601, lon:-71.0589, location:'Boston, Massachusetts' }
        : { lat:47.6062, lon:-122.3321, location:'Seattle, Washington' }
@@ -170,38 +182,44 @@ try{
    await page.waitForFunction(()=>document.body.innerText.includes('TOMTOM ROADS: LIVE')&&document.body.innerText.includes('WSDOT SENSORS: LIVE'),{timeout:30000})
    await page.waitForTimeout(1500)
    const card=page.locator('[data-terminal-map-card]')
-   const assertModalGeometry = async mode => {
+   const assertMapGeometry = async mode => {
      const layout = await card.evaluate(el => {
        const box = el.getBoundingClientRect()
        const map = el.querySelector('.map-crt-effect').getBoundingClientRect()
+       const console = document.querySelector('footer').getBoundingClientRect()
+       const input = document.querySelector('footer input')
+       const field = input.getBoundingClientRect()
        const viewport = document.documentElement.clientWidth
-       return { left: box.left, right: viewport-box.right,
-         top: box.top, bottom: innerHeight-box.bottom,
+       return { left: box.left, right: viewport-box.right, top: box.top,
+         bottom: innerHeight-console.bottom, consoleOverlap:box.bottom-console.top,
+         inputHit: document.elementFromPoint(field.x+10,field.y+field.height/2)===input,
          mapRatio: (Math.min(map.bottom, box.bottom) - Math.max(map.top, box.top))/innerHeight,
-         modal: el.matches(':modal'),
          scrollLocked: getComputedStyle(document.documentElement).overflowY==='hidden',
          overflow: document.documentElement.scrollWidth-viewport,
          contentOverflow: el.scrollWidth-el.clientWidth }
      })
-     if(!layout.modal || !layout.scrollLocked ||
+     if(!layout.scrollLocked || !layout.inputHit || layout.consoleOverlap>0 ||
         [layout.top,layout.bottom,layout.left,layout.right].some(gap=>gap<7||gap>18) ||
         layout.mapRatio < (mode==='traffic' ? 0.72 : 0.52) ||
         layout.overflow>2 || layout.contentOverflow>2) {
-       throw Error(mode+' map should take up most of a padded, scroll-locked modal: '+JSON.stringify(layout))
+       throw Error(mode+' map should stay large and leave the command line reachable: '+JSON.stringify(layout))
      }
    }
-   await assertModalGeometry('traffic')
+   await assertMapGeometry('traffic')
    const closeMap=page.getByRole('button',{name:'Close map'})
-   if(!await closeMap.evaluate(el=>document.activeElement===el)) throw Error('Close must receive modal focus')
+   if(!await input.evaluate(el=>document.activeElement===el)) throw Error('Opening a map should keep command focus')
    const backgroundCanReceiveFocus=await page.locator('header nav a').first().evaluate(el=>{
      el.focus()
      return document.activeElement===el
    })
    if(backgroundCanReceiveFocus) throw Error('Background navigation stayed focusable')
-   for(let i=0;i<8;i++) {
+   await closeMap.focus()
+   let reachedTerminal=false
+   for(let i=0;i<10;i++) {
      await page.keyboard.press('Tab')
-     if(await input.evaluate(el=>document.activeElement===el)) throw Error('Focus escaped to the terminal')
+     if(await input.evaluate(el=>document.activeElement===el)) { reachedTerminal=true; break }
    }
+   if(!reachedTerminal) throw Error('Map controls trapped focus away from the terminal')
    if(await card.getByRole('group',{name:'Radar timeline'}).count()) {
      throw Error('Dedicated traffic mode must not contain a weather sidebar')
    }
@@ -219,19 +237,11 @@ try{
    await page.getByRole('button',{name:'Turn traffic overlay on'}).waitFor({timeout:5000})
    await card.screenshot({path:`preview-output/traffic-card-${name}-off.png`})
    if(!info.text.includes('TOMTOM ROADS: LIVE'))throw Error('No per-provider health')
-   await page.keyboard.press('Escape')
-   await card.waitFor({state:'detached'})
-   if(name==='desktop' && !await input.evaluate(el=>document.activeElement===el)) {
-     throw Error('Dismissing the modal should return desktop focus to the terminal')
-   }
-   if(await page.evaluate(()=>getComputedStyle(document.documentElement).overflowY==='hidden')) {
-     throw Error('Closing the modal should restore background scrolling')
-   }
-   // Existing weather command still opens independently.
+   // The next map command goes through the same terminal without closing first.
    await input.fill('weather Seattle')
    await input.press('Enter')
    await page.getByText('LIVE RADAR SIGNAL').waitFor({timeout:30000})
-   await assertModalGeometry('weather')
+   await assertMapGeometry('weather')
    if(await page.getByText('LIVE TRAFFIC SIGNAL').count())throw Error('Traffic-only header survived weather switch')
    const timeline=page.getByRole('group',{name:'Radar timeline'})
    await timeline.waitFor({timeout:15000})
@@ -403,10 +413,74 @@ try{
      if(landscape.mapHeight<220||!landscape.canScroll||!landscape.closeStillVisible) {
        throw Error('Short landscape modal must retain map space, scrolling and Close: '+JSON.stringify(landscape))
      }
+     // A shorter portrait visual viewport simulates the phone keyboard
+     // reserving space; the same input must still be reachable below the map.
+     await page.setViewportSize({width,height:460})
+     await page.waitForFunction(()=>{
+       const input=document.querySelector('footer input')
+       const rect=input.getBoundingClientRect()
+       const map=document.querySelector('[data-terminal-map-card]').getBoundingClientRect()
+       return rect.bottom<innerHeight && rect.top>map.bottom &&
+         document.elementFromPoint(rect.x+10,rect.y+rect.height/2)===input
+     },null,{timeout:10000})
      await page.setViewportSize({width,height})
    }
    await closeMap.click()
    await card.waitFor({state:'detached'})
+   if(name==='desktop' && !await input.evaluate(el=>document.activeElement===el)) {
+     throw Error('The Close button should return desktop focus to the command line')
+   }
+   if(await page.evaluate(()=>getComputedStyle(document.documentElement).overflowY==='hidden')) {
+     throw Error('Closing the map should restore background scrolling')
+   }
+   const command = async line => { await input.fill(line); await input.press('Enter') }
+   await command('traffic Seattle')
+   await page.getByRole('region',{name:'Traffic map: Seattle, Washington'}).waitFor()
+   await command('weather unlisted')
+   await page.getByText('Error fetching weather:',{exact:false}).waitFor()
+   await page.getByRole('region',{name:'Traffic map: Seattle, Washington'}).waitFor()
+   await command('traffic Boston')
+   await page.getByRole('region',{name:'Traffic map: Boston, Massachusetts'}).waitFor()
+   if(await page.getByRole('region',{name:'Traffic map: Seattle, Washington'}).count()) {
+     throw Error('Replacing a map in the same mode retained the old location')
+   }
+   await Promise.all([
+     page.waitForRequest(req=>req.url().includes('city=slow-city'),{timeout:8000}),
+     command('weather slow-city')
+   ])
+   await page.getByText('Locating slow-city...').waitFor()
+   await page.getByRole('region',{name:'Traffic map: Boston, Massachusetts'}).waitFor()
+   await command('clear')
+   await card.waitFor({state:'detached'})
+   const staleMapReappeared = card.waitFor({state:'attached',timeout:500}).then(()=>true, error=>{
+     if(error.name!=='TimeoutError') throw error
+     return false
+   })
+   resumeSlowLookup()
+   await completedSlowLookup
+   if(await staleMapReappeared) throw Error('A cancelled lookup reopened a cleared map')
+   await command('pwd')
+   await page.getByText('/home/user',{exact:true}).waitFor()
+   if(await card.count()) throw Error('A superseded map lookup reopened the panel')
+   await command('traffic Seattle')
+   await card.waitFor()
+   await input.press('Escape')
+   await card.waitFor({state:'detached'})
+   if(!await input.evaluate(el=>document.activeElement===el)) throw Error('Escape dropped terminal focus')
+   await command('weather Seattle')
+   await card.waitFor()
+   await command('pwd')
+   await page.getByText('/home/user',{exact:true}).waitFor()
+   await card.waitFor({state:'detached'})
+   await command('traffic Seattle')
+   await card.waitFor()
+   await Promise.all([
+     page.waitForURL('**/about',{timeout:10000}),
+     command('cd about')
+   ])
+   await card.waitFor({state:'detached'})
+   await page.goBack()
+   await page.waitForURL(`http://127.0.0.1:${port}/`)
    // A revoked Spotify refresh token used to silently clear the terminal.
    // Regress the visible owner-reauthorization message in both viewport sizes.
    await page.route('**/api/spotify',route=>route.fulfill({
