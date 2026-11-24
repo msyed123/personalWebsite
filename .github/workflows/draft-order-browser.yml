@@ -4,6 +4,7 @@ on:
     paths:
       - 'pages/draft.vue'
       - 'components/Draft.vue'
+      - 'components/DraftPortrait.vue'
       - 'components/Wheel.vue'
       - 'tests/draft-order-browser.mjs'
       - '.github/workflows/draft-order-browser.yml'

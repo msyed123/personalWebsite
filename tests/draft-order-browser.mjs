@@ -13,7 +13,8 @@ const docs = teams.map((name, i) => ({
     name: [{ text: name }],
     previousteamname: [{ text: 'League team ' + (i + 1) }],
     previousrecord: [{ text: '7–7' }],
-    standing: i + 1
+    standing: i + 1,
+    picture: i === 1 ? null : { url: 'https://portraits.test/' + i + '.svg' }
   }
 }))
 const server = spawn(process.execPath, ['.output/server/index.mjs'], {
@@ -39,7 +40,27 @@ try {
       })
       const errors = []
       page.on('pageerror', error => errors.push(error.message))
-      await page.addInitScript(() => sessionStorage.setItem('draftUnlocked', '1'))
+      await page.addInitScript(() => {
+        sessionStorage.setItem('draftUnlocked', '1')
+        // Keep the roster order stable so first, last, absent and broken
+        // portraits all follow a predictable reveal sequence.
+        Math.random = () => 0.98
+      })
+      await page.route('https://portraits.test/**', route => {
+        const i = Number(new URL(route.request().url()).pathname[1])
+        if (i === 2) return route.fulfill({status:404,body:'not found'})
+        const backgrounds = ['#315046','#4e3a65','#413556','#455d72','#56392a','#234959']
+        return route.fulfill({
+          contentType: 'image/svg+xml',
+          body: `<svg xmlns="http://www.w3.org/2000/svg" width="180" height="240" viewBox="0 0 180 240">
+            <rect width="180" height="240" fill="${backgrounds[i]}"/>
+            <path d="M12 240v-27q0-43 51-48l27 18 27-18q51 5 51 48v27" fill="#7394a9"/>
+            <ellipse cx="90" cy="84" rx="47" ry="61" fill="#dea972"/>
+            <path d="M43 73q-5-58 47-58t47 58q-9-28-24-26-25 15-70 26" fill="#312928"/>
+            <path d="M66 83h7m35 0h7m-34 29q9 7 18 0" fill="none" stroke="#49322d" stroke-width="4" stroke-linecap="round"/>
+          </svg>`
+        })
+      })
       await page.route('https://static.cdn.prismic.io/**', route => route.abort())
       await page.route(/^https:\/\/[^/]+\.cdn\.prismic\.io\/api\/v2(?:[/?]|$)/, async route => {
         const { pathname } = new URL(route.request().url())
@@ -85,6 +106,24 @@ try {
         await page.getByRole('button', { name: 'Reveal pick ' + pick }).click()
         await page.locator('[data-pick="' + pick + '"]').waitFor()
         assert.equal(await page.locator('[data-pick]').count(), docs.length - pick + 1)
+        if (pick === docs.length) {
+          const featured = page.locator('.featured-reveal img')
+          const result = page.locator('[data-pick="6"] img')
+          await page.waitForFunction(() => {
+            const images = [...document.querySelectorAll('.featured-reveal img, [data-pick="6"] img')]
+            return images.length === 2 && images.every(img => img.naturalWidth === 180)
+          })
+          assert.equal(await wheel.count(), 0, 'The finished spin should show the selected portrait')
+          const [featuredSize, resultSize] = await Promise.all([featured.boundingBox(), result.boundingBox()])
+          assert.ok(featuredSize.width >= (mode === 'desktop' ? 180 : 165))
+          assert.ok(resultSize.width >= (mode === 'desktop' ? 100 : 80))
+          const nextAction = await page.getByRole('button', {name:'Reveal pick 5'}).boundingBox()
+          assert.ok(Math.abs(nextAction.y + nextAction.height - geometry.buttonBottom) < 3)
+          const featuredName = await page.locator('.featured-reveal figcaption strong').textContent()
+          assert.equal(featuredName, await page.locator('[data-pick="6"] h3').textContent())
+          await page.screenshot({ path: preview + '/draft-' + mode + '-portrait-reveal.png', fullPage:true })
+          console.log(mode + ' active/result portrait widths: ' + featuredSize.width + ' / ' + resultSize.width)
+        }
       }
       assert.equal(await wheel.count(), 0, 'Only the final reveal should remain')
       await page.getByRole('button', { name: 'Reveal first overall' }).click()
@@ -93,6 +132,15 @@ try {
         [1, 2, 3, 4, 5, 6])
       assert.deepEqual((await picks.getByRole('heading').allTextContents()).sort(), teams.slice().sort())
       assert.equal(await page.getByRole('button', { name: /Reveal/ }).count(), 0)
+      const firstPortrait = picks.locator('[data-pick="1"] img')
+      assert.ok((await firstPortrait.boundingBox()).width >= (mode === 'desktop' ? 145 : 105))
+      await picks.locator('[data-pick="3"]').scrollIntoViewIfNeeded()
+      await page.waitForFunction(() => {
+        const nameMissing = document.querySelector('[data-pick="2"] .draft-portrait span')
+        const photoBroken = document.querySelector('[data-pick="3"] .draft-portrait span')
+        return nameMissing?.textContent.trim() === 'AL' && photoBroken?.textContent.trim() === 'JF'
+      })
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth), 0)
       assert.deepEqual(errors, [])
       await page.evaluate(() => document.body.classList.add('light-theme'))
       const panelBg = await page.locator('.draft-results').evaluate(el => getComputedStyle(el).backgroundColor)
