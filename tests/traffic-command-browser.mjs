@@ -175,6 +175,14 @@ try{
       (name==='mobile' && terminalInput.focused)) {
      throw Error('Terminal input should not auto-edit text or focus/zoom on touch devices: '+JSON.stringify(terminalInput))
    }
+   if(name==='mobile') {
+     await input.tap()
+     if(!await input.evaluate(el=>document.activeElement===el)) throw Error('Tapping terminal should focus it')
+     await input.press('Enter')
+     if(await input.evaluate(el=>document.activeElement===el)) throw Error('Blank Enter should dismiss the keyboard')
+     await input.tap()
+     if(!await input.evaluate(el=>document.activeElement===el)) throw Error('Tapping terminal should restore focus after Enter')
+   }
    await input.fill('traffic Seattle')
    await input.press('Enter')
    await page.getByText('LIVE TRAFFIC SIGNAL').waitFor({timeout:35000})
@@ -207,7 +215,13 @@ try{
    }
    await assertMapGeometry('traffic')
    const closeMap=page.getByRole('button',{name:'Close map'})
-   if(!await input.evaluate(el=>document.activeElement===el)) throw Error('Opening a map should keep command focus')
+   if(await input.evaluate(el=>document.activeElement===el) !== (name==='desktop')) {
+     throw Error('Submit must blur the touch input and preserve desktop command focus')
+   }
+   if(name==='mobile') {
+     await input.tap()
+     if(!await input.evaluate(el=>document.activeElement===el)) throw Error('Tapping the terminal under a map should focus it again')
+   }
    const backgroundCanReceiveFocus=await page.locator('header nav a').first().evaluate(el=>{
      el.focus()
      return document.activeElement===el

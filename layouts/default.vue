@@ -219,6 +219,11 @@ const draftUnlocked = ref(false)
 const handleCommand = () => {
   const input = cmdInput.value.trim().toLowerCase()
   cmdInput.value = ''
+  // Dismiss the touch keyboard in the submit gesture, not after an async
+  // result that might arrive after the user has already tapped to type again.
+  if (navigator.maxTouchPoints > 0 && window.matchMedia('(pointer: coarse)').matches) {
+    terminalInput.value?.blur()
+  }
 
   if (cmdState.value === 'draft_password') {
     if (input === 'aib') {
