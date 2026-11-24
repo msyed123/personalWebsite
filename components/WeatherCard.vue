@@ -1,5 +1,5 @@
 <template>
-  <dialog ref="dialog" data-terminal-map-card class="map-dialog font-mono text-sm border border-terminal-amber/30 p-3 sm:p-4 min-w-0 bg-terminal-black text-terminal-amber shadow-lg"
+  <dialog ref="dialog" data-terminal-map-card class="map-dialog font-mono text-sm border border-terminal-amber/30 p-3 sm:px-4 min-w-0 bg-terminal-black text-terminal-amber shadow-lg"
     :aria-label="`${trafficOnly ? 'Traffic' : 'Weather'} map: ${weatherData.location}`"
     @cancel.prevent="closeDialog">
     <button ref="closeButton" type="button" autofocus aria-label="Close map" @click="closeDialog"
@@ -24,9 +24,11 @@
     </div>
 
     <!-- A separate traffic terminal with no weather/radar panel. -->
-    <div v-else class="flex flex-col gap-2 pt-1 pr-8">
-      <span class="text-[11px] tracking-widest text-terminal-amber-dim">LIVE TRAFFIC SIGNAL</span>
-      <div class="text-xl sm:text-2xl font-bold text-terminal-blue break-words">{{ weatherData.location }}</div>
+    <div v-else class="flex flex-wrap justify-between items-end gap-x-4 gap-y-1 pt-1 pr-12">
+      <div class="min-w-0">
+        <span class="block text-[11px] tracking-widest text-terminal-amber-dim">LIVE TRAFFIC SIGNAL</span>
+        <div class="text-xl sm:text-2xl font-bold text-terminal-blue break-words">{{ weatherData.location }}</div>
+      </div>
       <div class="flex flex-wrap justify-between items-center gap-2 text-xs text-terminal-amber-dim">
         <span>FLOW STATUS: <strong class="text-terminal-amber">{{ trafficStatus }}</strong></span>
         <button type="button" @click="toggleTraffic" :disabled="!trafficLayerReady"
