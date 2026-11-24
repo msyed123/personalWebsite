@@ -8,7 +8,7 @@
     <div v-if="!trafficOnly" class="map-heading flex flex-wrap justify-between items-end gap-x-4 gap-y-1 w-full pt-1 pr-12">
       <div class="flex items-center gap-3 min-w-0">
         <!-- Keep the original ASCII art, but allow long location names to wrap. -->
-        <div class="hidden sm:block flex-shrink-0 whitespace-pre leading-tight font-bold text-xs" :class="artColor">
+        <div class="map-art hidden sm:block flex-shrink-0 whitespace-pre leading-tight font-bold text-xs" :class="artColor">
 {{ asciiArt }}
         </div>
         <div class="min-w-0 flex-1">
@@ -28,7 +28,7 @@
         <span class="block text-[11px] tracking-widest text-terminal-amber-dim">LIVE TRAFFIC SIGNAL</span>
         <div class="text-xl sm:text-2xl font-bold text-terminal-blue break-words">{{ weatherData.location }}</div>
       </div>
-      <div class="flex flex-wrap justify-between items-center gap-2 text-xs text-terminal-amber-dim">
+      <div class="flex flex-wrap justify-between items-center gap-2 text-xs text-terminal-amber-dim map-desktop-controls">
         <span>FLOW STATUS: <strong class="text-terminal-amber">{{ trafficStatus }}</strong></span>
         <button type="button" @click="toggleTraffic" :disabled="!trafficLayerReady"
           :aria-pressed="trafficVisible"
@@ -39,13 +39,17 @@
     </div>
 
     <div class="map-workspace" :class="trafficOnly ? 'traffic-map-workspace' : 'weather-map-workspace'">
+      <button type="button" class="map-controls-toggle map-control-bg border border-terminal-amber-dim px-3 text-xs text-terminal-amber"
+        aria-controls="map-controls" :aria-expanded="controlsExpanded" @click="controlsExpanded = !controlsExpanded">
+        {{ controlsExpanded ? 'Hide controls' : 'Controls' }}
+      </button>
       <!-- Map Container -->
       <div
         ref="mapContainer"
         class="w-full border border-terminal-amber-dim/50 bg-terminal-black overflow-hidden map-crt-effect relative"
       >
         <!-- Explicit, keyboard-accessible traffic toggle. Radar is never affected. -->
-        <div v-if="!trafficOnly" class="absolute top-2 right-2 z-[999] flex flex-col items-end gap-1">
+        <div v-if="!trafficOnly" class="map-desktop-controls absolute top-2 right-2 z-[999] flex flex-col items-end gap-1">
           <button
             type="button"
             @click="toggleTraffic"
@@ -59,7 +63,7 @@
             {{ trafficStatus }}<span v-if="trafficLastUpdate"> · FETCH {{ trafficLastUpdate }}</span>
           </div>
         </div>
-        <div v-if="!trafficOnly && trafficVisible && (trafficStatus === 'LIVE' || trafficStatus === 'DEGRADED')" class="hidden sm:block absolute top-[72px] right-2 z-[999] map-control-bg border border-terminal-amber-dim/40 px-2 py-1 text-[9px] text-terminal-amber-dim text-right">
+        <div v-if="!trafficOnly && trafficVisible && (trafficStatus === 'LIVE' || trafficStatus === 'DEGRADED')" class="map-desktop-controls hidden sm:block absolute top-[72px] right-2 z-[999] map-control-bg border border-terminal-amber-dim/40 px-2 py-1 text-[9px] text-terminal-amber-dim text-right">
           <span class="text-green-500">●</span> FLOW
           <span class="text-amber-400">●</span> SLOW
           <span class="text-red-500">●</span> JAM
@@ -76,7 +80,10 @@
 
       <!-- A proper temporal navigator: visible time, accessible playhead, and
            controls outside the map so precipitation never hides the timeline. -->
-      <div v-if="!trafficOnly" class="radar-timeline min-w-0 border border-terminal-amber-dim/50 bg-terminal-black px-3 py-3 flex flex-col gap-2" role="group" :aria-label="weatherLayer === 'radar' ? 'Radar timeline' : 'Precipitation timeline'" :aria-busy="radarLoading">
+      <div id="map-controls"
+        :class="{ 'map-controls-expanded': controlsExpanded, 'map-mobile-only': trafficOnly }"
+        class="map-controls-panel radar-timeline min-w-0 border border-terminal-amber-dim/50 bg-terminal-black px-3 py-3 flex flex-col gap-2" role="group" :aria-label="trafficOnly ? 'Traffic controls' : weatherLayer === 'radar' ? 'Radar timeline' : 'Precipitation timeline'" :aria-busy="radarLoading">
+        <template v-if="!trafficOnly">
         <div class="grid grid-cols-2 gap-1 text-xs" role="group" aria-label="Weather map layer">
           <button v-for="mode in ['radar', 'precipitation']" :key="mode" type="button"
             :aria-pressed="weatherLayer === mode"
@@ -84,6 +91,14 @@
             class="border px-1 py-1.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-terminal-blue"
             @click="selectWeatherLayer(mode)">{{ mode === 'radar' ? 'Radar' : 'Precipitation' }}</button>
         </div>
+        <label class="flex flex-col gap-0.5 text-[11px] text-terminal-amber">
+          <span class="flex justify-between gap-2">Weather opacity <span>{{ Math.round(weatherOpacity * 100) }}%</span></span>
+          <input type="range" class="radar-scrubber block w-full h-5 cursor-pointer"
+            min="0" max="100" step="5" :value="Math.round(weatherOpacity * 100)" aria-label="Weather opacity"
+            :aria-valuetext="Math.round(weatherOpacity * 100) + '%'"
+            :style="{ '--radar-progress': Math.round(weatherOpacity * 100) + '%' }"
+            @input="setWeatherOpacity">
+        </label>
         <div class="flex flex-wrap justify-between items-center gap-x-4 gap-y-1">
           <div class="flex flex-col gap-0.5">
             <span class="text-[11px] tracking-[0.17em] text-terminal-amber font-bold">{{ weatherLayer === 'radar' ? 'RADAR TIMELINE' : 'PRECIPITATION FORECAST' }}</span>
@@ -136,34 +151,36 @@
           ECCC GDPS model forecast. Millimetres accumulated in the preceding hour.
           <a :href="forecastLegendUrl" target="_blank" rel="noopener noreferrer" class="underline">Colour scale</a>
         </p>
+        </template>
+        <div class="map-mobile-only flex flex-wrap items-center justify-between gap-2 text-xs">
+          <button type="button" class="border border-terminal-amber-dim px-3 py-2" @click="toggleTraffic"
+            :disabled="!trafficLayerReady" :aria-pressed="trafficVisible"
+            :aria-label="trafficVisible ? 'Turn traffic overlay off' : 'Turn traffic overlay on'">
+            Traffic {{ trafficLayerReady ? (trafficVisible ? '[ON]' : '[OFF]') : '[NO FEED]' }}
+          </button>
+          <span>{{ trafficStatus }}</span>
+        </div>
+        <div v-if="trafficLayerReady && (trafficOnly || trafficVisible)" class="map-mobile-only flex-col gap-1 text-[10px] text-terminal-amber-dim">
+          <p>TOMTOM ROADS: {{ trafficRoadHealth }} · WSDOT SENSORS: {{ trafficStationHealth }}</p>
+          <p v-if="trafficLastUpdate">LATEST FETCH: {{ trafficLastUpdate }}</p>
+          <p><span class="text-green-500">●</span> FLOW · <span class="text-amber-400">●</span> SLOW ·
+            <span class="text-red-500">●</span> JAM · <span class="text-gray-300">●</span> CLOSED</p>
+        </div>
       </div>
     </div>
 
     <div v-if="trafficOnly && trafficVisible && trafficLayerReady"
-      class="flex flex-wrap gap-3 text-[10px] text-terminal-amber-dim tracking-wide" aria-label="Traffic legend">
+      class="map-desktop-controls flex flex-wrap gap-3 text-[10px] text-terminal-amber-dim tracking-wide" aria-label="Traffic legend">
       <span><span class="text-green-500">●</span> FLOW</span>
       <span><span class="text-amber-400">●</span> SLOW</span>
       <span><span class="text-red-500">●</span> JAM</span>
       <span><span class="text-gray-300">●</span> CLOSED</span>
       <span v-if="trafficStationsEnabled">SENSORS: DOTS</span>
     </div>
-    <div v-if="trafficLayerReady" class="flex flex-wrap gap-3 text-[10px] text-terminal-amber-dim">
+    <div v-if="trafficLayerReady" class="map-desktop-controls flex flex-wrap gap-3 text-[10px] text-terminal-amber-dim">
       <span>TOMTOM ROADS: {{ trafficRoadHealth }}</span>
       <span>WSDOT SENSORS: {{ trafficStationHealth }}</span>
       <span v-if="trafficLastUpdate">LATEST FETCH: {{ trafficLastUpdate }}</span>
-    </div>
-
-    <!-- On phones, keep the traffic legend outside the map viewport. -->
-    <div
-      v-if="!trafficOnly && trafficVisible && (trafficStatus === 'LIVE' || trafficStatus === 'DEGRADED')"
-      class="sm:hidden flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-terminal-amber-dim tracking-wide"
-      aria-label="Traffic legend"
-    >
-      <span><span class="text-green-500">●</span> FLOW</span>
-      <span><span class="text-amber-400">●</span> SLOW</span>
-      <span><span class="text-red-500">●</span> JAM</span>
-      <span><span class="text-gray-300">●</span> CLOSED</span>
-      <span v-if="trafficStationsEnabled" class="opacity-80">SENSORS: DOTS</span>
     </div>
 
     <div class="text-[10px] sm:text-xs text-terminal-amber-dim/80 flex flex-wrap gap-x-3 justify-between tracking-widest uppercase mt-[-4px]">
@@ -179,7 +196,7 @@
 </template>
 
 <script setup>
-import { onMounted, onUnmounted, ref, shallowRef, computed } from 'vue'
+import { onMounted, onUnmounted, ref, shallowRef, computed, watch } from 'vue'
 import {
   isMrmsCoverage, mrmsFrameCandidates, mrmsFrames, mrmsArchiveUrl, mrmsTileUrl,
   forecastCapabilitiesUrl, forecastLegendUrl, forecastTileUrl, readForecastFrames,
@@ -256,6 +273,16 @@ const RADAR_OPACITY_SOLO = 0.95
 const RADAR_OPACITY_WITH_TRAFFIC = 0.55
 const trafficStatus = ref('NO KEY')
 const trafficVisible = ref(false)
+const controlsExpanded = ref(false)
+const customOpacity = ref(null)
+const weatherOpacity = computed(() =>
+  customOpacity.value ?? (trafficVisible.value ? RADAR_OPACITY_WITH_TRAFFIC : RADAR_OPACITY_SOLO))
+watch(weatherOpacity, value => radarController?.setOpacity(value))
+
+function setWeatherOpacity(event) {
+  const amount = Number(event.target.value)
+  if (Number.isFinite(amount)) customOpacity.value = Math.max(0, Math.min(100, amount)) / 100
+}
 const trafficLayerReady = ref(false)
 const trafficRoadsEnabled = ref(false)
 const trafficStationsEnabled = ref(false)
@@ -318,7 +345,7 @@ async function showFrame(index) {
   radarLoading.value = true
   try {
     return await activeController.showFrame(index,
-      trafficVisible.value ? RADAR_OPACITY_WITH_TRAFFIC : RADAR_OPACITY_SOLO)
+      weatherOpacity.value)
   } finally {
     // Rapid scrubs can supersede this request; only the most recent selection
     // may clear its pending/loading indicator.
@@ -349,7 +376,6 @@ function toggleTraffic() {
   trafficVisible.value = !trafficVisible.value
   trafficController.setVisible(trafficVisible.value)
   // Opaque roads and labels render on top of precipitation.
-  radarController?.setOpacity(trafficVisible.value ? RADAR_OPACITY_WITH_TRAFFIC : RADAR_OPACITY_SOLO)
 }
 
 function zoomIn() {
@@ -484,7 +510,6 @@ onMounted(async () => {
       onReady: (ready) => {
         trafficLayerReady.value = ready;
         trafficVisible.value = ready;
-        radarController?.setOpacity(ready ? RADAR_OPACITY_WITH_TRAFFIC : RADAR_OPACITY_SOLO);
       },
       onSources: ({ roads, stations }) => {
         trafficRoadsEnabled.value = roads;
@@ -566,7 +591,7 @@ onMounted(async () => {
           if (!stillActive()) return
           if (!paths.length) throw Error('No weather frames available')
           const layer = createAsciiRadarLayer({ gl, addProtocol, removeProtocol, ...settings })
-          if (!layer.initialize(paths, trafficVisible.value ? RADAR_OPACITY_WITH_TRAFFIC : RADAR_OPACITY_SOLO)) {
+          if (!layer.initialize(paths, weatherOpacity.value)) {
             throw Error('Weather layer did not initialize')
           }
           radarController = layer
@@ -694,6 +719,39 @@ onUnmounted(() => {
   }
 }
 
+.map-controls-toggle, .map-mobile-only { display: none; }
+
+@media (max-width: 639px), (max-height: 560px) and (pointer: coarse) {
+  .map-panel .map-desktop-controls, .map-panel .map-art { display: none; }
+  .map-workspace {
+    position: relative;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+    min-height: 0;
+    flex: 1 1 0;
+  }
+  .map-controls-toggle {
+    display: block;
+    position: absolute;
+    top: .5rem;
+    left: .5rem;
+    z-index: 1000;
+    min-height: 44px;
+  }
+  .map-mobile-only { display: flex; }
+  .map-controls-panel {
+    display: none;
+    position: absolute;
+    z-index: 1000;
+    left: .5rem;
+    right: .5rem;
+    bottom: .5rem;
+    max-height: calc(100% - 3.65rem);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  .map-controls-panel.map-controls-expanded { display: flex; }
+}
 /* Leaflet transforms its panes and MapLibre composites a WebGL canvas.
    Clip at the viewport's own paint boundary, not only via overflow, to keep
    precipitation from appearing beside the sticky terminal during animation.
