@@ -44,8 +44,8 @@
         </div>
 
         <!-- Plain text output -->
-        <div v-else-if="cmdOutput" class="text-terminal-amber-dim whitespace-pre-line w-full pb-2 mb-2 border-b border-terminal-amber-dim/20 flex justify-between items-start">
-          <div role="status">{{ cmdOutput }}</div>
+        <div v-else-if="cmdOutput" class="text-terminal-amber-dim whitespace-pre-wrap w-full pb-2 mb-2 border-b border-terminal-amber-dim/20 flex justify-between items-start">
+          <div role="status" class="min-w-0 break-words">{{ cmdOutput }}</div>
           <button @click="cmdOutput = ''" class="hover:text-red-500 shrink-0 ml-4">[x]</button>
         </div>
 
