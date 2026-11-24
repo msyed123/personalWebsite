@@ -6,7 +6,3 @@ export const newsTopics = Object.freeze([
 ])
 export const defaultNewsTopic = 'headlines'
 export const isNewsTopic = topic => newsTopics.some(({ id }) => id === topic)
-export const newsLocation = topic => ({
-  path: '/news',
-  query: topic === defaultNewsTopic ? {} : { topic }
-})

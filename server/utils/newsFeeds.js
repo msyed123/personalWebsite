@@ -50,6 +50,16 @@ function visibleText(node) {
   return cleanText(Array.from(children(node), child => child.nodeName === '#text' ? child.value : '').join(' '))
 }
 
+function publisherImageUrl(value, hosts, pathPrefix) {
+  try {
+    const url = new URL(value)
+    if (url.protocol !== 'https:' || url.username || url.password || url.port ||
+        !hosts.includes(url.hostname) || (pathPrefix && !url.pathname.startsWith(pathPrefix)) ||
+        !/\.(?:jpe?g|png|webp)$/i.test(url.pathname) || url.href.length > 2048) return null
+    return url
+  } catch { return null }
+}
+
 function nasaImage(encoded) {
   if (!encoded) return null
   for (const wrapper of children(parseFragment(encoded))) {
@@ -66,18 +76,35 @@ function nasaImage(encoded) {
     if (credit !== 'NASA') continue
     const images = Array.from(children(figure)).filter(node => node.tagName === 'img')
     if (images.length !== 1) continue
-    try {
-      const url = new URL(attr(images[0], 'src'))
-      if (url.protocol !== 'https:' || url.username || url.password || url.port ||
-          !['www.nasa.gov', 'science.nasa.gov', 'assets.science.nasa.gov'].includes(url.hostname) ||
-          !/\.(?:jpe?g|png|webp)$/i.test(url.pathname)) continue
-      // Use NASA's existing width transform on eligible WordPress media.
-      if (url.hostname === 'www.nasa.gov' && url.searchParams.has('w')) url.searchParams.set('w', '900')
-      const alt = cleanText(attr(images[0], 'alt')).slice(0, 500)
-      return { url: url.href, alt, credit }
-    } catch { /* unsupported image, try the next candidate */ }
+    const url = publisherImageUrl(attr(images[0], 'src'),
+      ['www.nasa.gov', 'science.nasa.gov', 'assets.science.nasa.gov'])
+    if (!url) continue
+    if (url.hostname === 'www.nasa.gov' && url.searchParams.has('w')) url.searchParams.set('w', '900')
+    const alt = cleanText(attr(images[0], 'alt')).slice(0, 500)
+    return { url: url.href, alt, credit }
   }
   return null
+}
+
+function universeTodayImage(description) {
+  // The publisher licenses its writing, not its photos. Only use the lead image
+  // when its own caption identifies NASA or explicitly states a CC BY 4.0 license.
+  const lead = description.childNodes?.find(node => node.tagName)
+  if (lead?.tagName !== 'p') return null
+  const images = lead.childNodes.filter(node => node.tagName === 'img')
+  if (images.length !== 1) return null
+  const image = images[0]
+  const url = publisherImageUrl(attr(image, 'src'), ['www.universetoday.com'], '/article_images/')
+  if (!url) return null
+  const caption = cleanText(attr(image, 'alt'))
+  const match = caption.match(/^(.*?)\b(?:Image )?Credit:\s*(.+)$/i)
+  if (!match) return null
+  const alt = match[1].trim().slice(0, 500)
+  const credit = match[2].trim()
+  if (credit === 'NASA') return { url: url.href, alt, credit }
+  const licensed = credit.match(/^(.+?)\s+Creative Commons Attribution 4\.0 International License\.?$/i)?.[1]?.trim()
+  if (!licensed || licensed.length > 400) return null
+  return { url: url.href, alt, credit: licensed, license: 'CC BY 4.0' }
 }
 
 function article({ title, link, published, byline, description, encoded }, source) {
@@ -85,8 +112,10 @@ function article({ title, link, published, byline, description, encoded }, sourc
   const time = Date.parse(published)
   const name = cleanText(title)
   if (!url || !name || name.length > 360 || !Number.isFinite(time)) return null
-  const summary = description ? visibleText(parseFragment(description)) : ''
-  const image = source === 'NASA' ? nasaImage(encoded) : null
+  const fragment = description ? parseFragment(description) : null
+  const summary = fragment ? visibleText(fragment) : ''
+  const image = source === 'NASA' ? nasaImage(encoded)
+    : source === 'Universe Today' && fragment ? universeTodayImage(fragment) : null
   return {
     title: name, url, source, byline: cleanText(byline).slice(0, 120),
     publishedAt: new Date(time).toISOString(),
@@ -140,7 +169,7 @@ export function readRssHeadlines(xml, source) {
 async function providerText(url, request, maxBytes, signal) {
   const res = await request(url, {
     signal, redirect: 'error',
-    headers: { 'User-Agent': 'msyed.space RSS reader (headlines only)' }
+    headers: { 'User-Agent': 'msyed.space RSS reader' }
   })
   if (!res.ok || !res.body) throw new Error('Feed unavailable')
   const reader = res.body.getReader()
