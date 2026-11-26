@@ -101,8 +101,12 @@ function syncVisualViewport () {
     visualViewportStyle.value = {}
   }
 }
+function hasTouchKeyboard () {
+  // A connected trackpad can make the primary pointer fine on a touch device.
+  return navigator.maxTouchPoints > 0 || window.matchMedia('(any-pointer: coarse)').matches
+}
 function desktopPointer () {
-  return navigator.maxTouchPoints === 0 &&
+  return !hasTouchKeyboard() &&
     window.matchMedia('(hover: hover) and (pointer: fine)').matches
 }
 onMounted(() => {
@@ -260,7 +264,14 @@ const draftUnlocked = ref(false)
 const commandHistory = createTerminalHistory()
 
 function handleTerminalKeys(event: KeyboardEvent) {
-  if (cmdState.value !== 'normal' || event.isComposing || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return
+  // Leave IME confirmation to the browser (including Safari's legacy 229).
+  if (event.isComposing || event.keyCode === 229) return
+  if (event.key === 'Enter') {
+    event.preventDefault()
+    if (!event.repeat) handleCommand()
+    return
+  }
+  if (cmdState.value !== 'normal' || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return
   let replacement = null
   if (event.key === 'Tab') {
     const field = terminalInput.value
@@ -277,13 +288,11 @@ function handleTerminalKeys(event: KeyboardEvent) {
 }
 
 const handleCommand = () => {
+  // Blur during Enter/Go, before rendering output or awaiting a command.
+  // The form submit handler also covers keyboards that submit directly.
+  if (hasTouchKeyboard()) terminalInput.value?.blur()
   const input = cmdInput.value.trim()
   cmdInput.value = ''
-  // Dismiss the touch keyboard in the submit gesture, not after an async
-  // result that might arrive after the user has already tapped to type again.
-  if (navigator.maxTouchPoints > 0 && window.matchMedia('(pointer: coarse)').matches) {
-    terminalInput.value?.blur()
-  }
 
   if (cmdState.value === 'draft_password') {
     if (input.toLowerCase() === 'aib') {
@@ -533,11 +542,6 @@ const handleCommand = () => {
   opacity: 1;
   padding-block: .6rem;
   min-width: 0;
-}
-
-.terminal-prompt:focus-within {
-  outline: 1px solid currentColor;
-  outline-offset: 3px;
 }
 
 :global(html:has(.terminal-workspace-open)),
